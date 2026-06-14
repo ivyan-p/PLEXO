@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PLEXO</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#080809;color:#EAEAF0;font-family:'DM Sans',sans-serif;overflow-x:hidden}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#C8FF00;border-radius:3px}
+@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect}=React;
+
+/* ─ Storage ─ */
+const LS={
+  get:(k,fb)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+};
+
+/* ─ Colors ─ */
+const C={ac:"#C8FF00",warm:"#FF4D00",bd:"#1C1C22",sf:"#101014",sub:"#80808A",mt:"#38383F",bg:"#080809"};
+const SC={Pending:"#C8FF00",Confirmed:"#00ff7f",Delivered:"#00bfff",Cancelled:"#ff4444"};
+const SB={Pending:"#1a1a00",Confirmed:"#002a10",Delivered:"#001a2a",Cancelled:"#2a0000"};
+
+/* ─ Defaults ─ */
+const DEF_SETTINGS={
+  brandName:"PLEXO",
+  tagline:"UNIVERSAL SOLUTIONS",
+  tickerText:"CASH ON DELIVERY ✦ NEW DROP EVERY FRIDAY ✦ GEN-Z STREETWEAR ✦ 7-DAY EASY RETURNS ✦",
+  heroTitle:"DEFINE YOUR",
+  heroTitleOutline:"UNIVERSE.",
+  heroSub:"Oversized. Unapologetic. 100% Bangladeshi streetwear for the generation that rewrites the rules.",
+  heroCTA:"SHOP NOW",
+  accentColor:"#C8FF00",
+  deliveryCharge:0,
+  freeDeliveryArea:"Dhaka",
+  codAvailable:true,
+  waNumber:"",
+  instagram:"",
+  tiktok:"",
+  facebook:"",
+  footerText:"MADE WITH ❤️ IN DHAKA, BANGLADESH",
+};
+const DEF_CATS=["Oversized Tee","Graphic Tee","Hoodie","Fleece","Bottoms","Jogger","Athleisure","Co-ord Set","Accessories"];
+const DEF_PRODUCTS=[
+  {id:"d1",name:"Phantom Black Tee",category:"Oversized Tee",price:1299,originalPrice:1799,badge:"NEW",badgeType:"accent",image:"",description:"Premium 240gsm heavyweight cotton. Drop shoulder oversized fit."},
+  {id:"d2",name:"Acid Wash Hoodie",category:"Hoodie",price:2499,originalPrice:3299,badge:"HOT",badgeType:"warm",image:"",description:"Garment-washed for a lived-in feel. Kangaroo pocket."},
+  {id:"d3",name:"Techwear Cargo",category:"Bottoms",price:3199,originalPrice:3999,badge:"",badgeType:"",image:"",description:"Ripstop nylon shell. 6-pocket utility design."},
+  {id:"d4",name:"Track Jacket",category:"Athleisure",price:2799,originalPrice:3599,badge:"NEW",badgeType:"accent",image:"",description:"Moisture-wicking polyester. Full-length front zip."},
+];
+const SIZES=["XS","S","M","L","XL","XXL","3XL"];
+const DISTRICTS=["Dhaka","Chittagong","Sylhet","Rajshahi","Khulna","Barishal","Rangpur","Mymensingh","Other"];
+
+/* ─ Helpers ─ */
+const getCats=()=>LS.get("plexo_cats",DEF_CATS);
+const getSettings=()=>({...DEF_SETTINGS,...LS.get("plexo_settings",{})});
+
+/* ─ Grad map ─ */
+const GRADS={"Oversized Tee":"135deg,#1a1a1a,#252515","Hoodie":"135deg,#151510,#222215","Bottoms":"135deg,#111118,#1a1a28","Athleisure":"135deg,#1a1212,#281a1a","Graphic Tee":"135deg,#0f1a0f,#1a2a1a","Fleece":"135deg,#181818,#252525","Co-ord Set":"135deg,#181818,#202020","Jogger":"135deg,#1a1818,#2a2020","Accessories":"135deg,#0d0d12,#10101e"};
+const grad=c=>`linear-gradient(${GRADS[c]||"135deg,#111,#222"})`;
+
+/* ═══════════════════════════════════════════════
+   SMALL REUSABLE COMPONENTS
+═══════════════════════════════════════════════ */
+function Img({src,cat,style={},fs="4rem"}){
+  const[fail,setFail]=useState(!src);
+  useEffect(()=>setFail(!src),[src]);
+  if(fail||!src)return<div style={{width:"100%",height:"100%",background:grad(cat),display:"flex",alignItems:"center",justifyContent:"center",...style}}><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:fs,color:"rgba(200,255,0,0.08)",userSelect:"none"}}>{(cat||"IMG").split(" ")[0].toUpperCase()}</span></div>;
+  return<img src={src} alt={cat} onError={()=>setFail(true)} style={{width:"100%",height:"100%",objectFit:"cover",display:"block",...style}}/>;
+}
+function Toast({msg}){if(!msg)return null;return<div style={{position:"fixed",bottom:"2rem",left:"50%",transform:"translateX(-50%)",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".72rem",fontWeight:700,letterSpacing:".12em",padding:".75rem 2rem",borderRadius:"2px",zIndex:9999,whiteSpace:"nowrap",animation:"fadeIn .3s ease"}}>{msg}</div>;}
+function StatusBadge({status}){return<span style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",fontWeight:700,padding:"3px 8px",borderRadius:"2px",background:SB[status]||SB.Pending,color:SC[status]||C.ac,letterSpacing:".08em"}}>{status||"Pending"}</span>;}
+function SLabel({children,style={}}){return<p style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".2em",color:C.ac,textTransform:"uppercase",...style}}>{children}</p>;}
+function Logo({settings}){
+  const s=settings||getSettings();
+  return<div style={{display:"flex",alignItems:"center",gap:10}}>
+    <svg width="28" height="28" viewBox="0 0 100 100" fill="none"><rect x="10" y="10" width="28" height="50" rx="4" stroke={s.accentColor||C.ac} strokeWidth="9" fill="none"/><line x1="38" y1="10" x2="90" y2="70" stroke={s.accentColor||C.ac} strokeWidth="9" strokeLinecap="round"/><line x1="38" y1="70" x2="90" y2="10" stroke={s.accentColor||C.ac} strokeWidth="9" strokeLinecap="round"/><line x1="10" y1="70" x2="10" y2="90" stroke={s.accentColor||C.ac} strokeWidth="9" strokeLinecap="round"/><line x1="10" y1="90" x2="38" y2="90" stroke={s.accentColor||C.ac} strokeWidth="9" strokeLinecap="round"/></svg>
+    <div style={{lineHeight:1}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.3rem",letterSpacing:".1em",color:"#EAEAF0",margin:0}}>{s.brandName||"PLEXO"}</p><p style={{fontFamily:"'Space Mono',monospace",fontSize:".4rem",letterSpacing:".18em",color:C.sub,margin:0}}>{s.tagline||"UNIVERSAL SOLUTIONS"}</p></div>
+  </div>;
+}
+
+/* ─ shared input style ─ */
+const INP={width:"100%",background:"#080809",border:`1px solid #1C1C22`,color:"#EAEAF0",fontFamily:"'DM Sans',sans-serif",fontSize:".875rem",padding:".65rem .9rem",borderRadius:"2px",outline:"none",boxSizing:"border-box"};
+const LBL={display:"block",fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".15em",color:"#80808A",marginBottom:".45rem"};
+const CARD={background:"#0D0D10",border:"1px solid #1C1C22",borderRadius:"4px",padding:"1.25rem",marginBottom:"1rem"};
+
+/* ═══════════════════════════════════════════════
+   SIZE CHART
+═══════════════════════════════════════════════ */
+const SIZE_CHART={
+  tshirt:{label:"T-Shirt / Oversized Tee",cols:["SIZE","CHEST","LENGTH","SHOULDER","SLEEVE"],rows:[{s:"XS",v:["38","26","17","8"]},{s:"S",v:["40","27","18","8.5"]},{s:"M",v:["42","28","19","9"]},{s:"L",v:["44","29","20","9.5"]},{s:"XL",v:["46","30","21","10"]},{s:"XXL",v:["48","31","22","10.5"]},{s:"3XL",v:["50","32","23","11"]}],tip:"Oversized fit-এর জন্য actual chest-এর চেয়ে 2-4 ইঞ্চি বড় size নাও।"},
+  hoodie:{label:"Hoodie / Sweatshirt",cols:["SIZE","CHEST","LENGTH","SHOULDER","SLEEVE"],rows:[{s:"XS",v:["40","26","18","24"]},{s:"S",v:["42","27","19","25"]},{s:"M",v:["44","28","20","26"]},{s:"L",v:["46","29","21","26.5"]},{s:"XL",v:["48","30","22","27"]},{s:"XXL",v:["50","31","23","27.5"]},{s:"3XL",v:["52","32","24","28"]}],tip:"Layering-এর জন্য এক size বড় নাও।"},
+  bottoms:{label:"Pants / Jogger / Cargo",cols:["SIZE","WAIST","HIP","LENGTH","THIGH"],rows:[{s:"XS",v:["26-28","36","38","21"]},{s:"S",v:["28-30","38","39","22"]},{s:"M",v:["30-32","40","40","23"]},{s:"L",v:["32-34","42","41","24"]},{s:"XL",v:["34-36","44","42","25"]},{s:"XXL",v:["36-38","46","43","26"]},{s:"3XL",v:["38-40","48","44","27"]}],tip:"Elastic waist থাকে — actual waist size অনুযায়ী নাও।"},
+};
+const chartType=cat=>{const c=(cat||"").toLowerCase();if(c.includes("hoodie")||c.includes("fleece")||c.includes("jacket")||c.includes("co-ord"))return"hoodie";if(c.includes("bottom")||c.includes("jogger")||c.includes("cargo"))return"bottoms";return"tshirt";};
+
+function SizeChartModal({category,onClose}){
+  const ch=SIZE_CHART[chartType(category)];
+  const[unit,setUnit]=useState("inches");
+  const cvt=v=>{if(!v)return v;if(v.includes("-"))return v.split("-").map(x=>Math.round(Number(x)*2.54)).join("-");return(Number(v)*2.54).toFixed(1);};
+  const d=v=>unit==="cm"?cvt(v):v;
+  return<div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",backdropFilter:"blur(12px)",zIndex:9500,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div style={{background:"#0D0D10",border:"1px solid #1C1C22",borderRadius:"8px",width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",animation:"slideUp .35s cubic-bezier(.22,1,.36,1)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"1.1rem 1.5rem",borderBottom:"1px solid #1C1C22",position:"sticky",top:0,background:"#0D0D10"}}>
+        <div><SLabel style={{marginBottom:".2rem"}}>📏 SIZE CHART</SLabel><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.3rem",color:"#EAEAF0",letterSpacing:".05em"}}>{ch.label.toUpperCase()}</p></div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".7rem",cursor:"pointer"}}>CLOSE ✕</button>
+      </div>
+      <div style={{padding:"1.25rem 1.5rem"}}>
+        <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:"1rem"}}>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.sub,letterSpacing:".1em"}}>UNIT:</p>
+          {["inches","cm"].map(u=><button key={u} onClick={()=>setUnit(u)} style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",fontWeight:700,padding:".3rem .75rem",borderRadius:"2px",border:`1px solid ${unit===u?C.ac:C.bd}`,background:unit===u?C.ac:"transparent",color:unit===u?"#080809":C.sub,cursor:"pointer"}}>{u.toUpperCase()}</button>)}
+        </div>
+        <div style={{overflowX:"auto",borderRadius:"3px",border:"1px solid #1C1C22"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead><tr style={{background:"rgba(200,255,0,.06)"}}>{ch.cols.map((col,i)=><th key={col} style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",letterSpacing:".1em",color:i===0?C.ac:C.sub,padding:".6rem .85rem",textAlign:i===0?"left":"center",borderBottom:"1px solid #C8FF00",whiteSpace:"nowrap"}}>{col}</th>)}</tr></thead>
+            <tbody>{ch.rows.map((row,ri)=><tr key={row.s} style={{borderBottom:"1px solid #1C1C22",background:ri%2===0?"transparent":"rgba(255,255,255,.018)"}}>
+              <td style={{padding:".6rem .85rem",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".7rem",color:C.ac}}>{row.s}</td>
+              {row.v.map((val,vi)=><td key={vi} style={{padding:".6rem .85rem",textAlign:"center",color:"#EAEAF0",fontFamily:"'Space Mono',monospace",fontSize:".7rem"}}>{d(val)}<span style={{fontSize:".52rem",color:C.mt}}>{unit==="cm"?" cm":'"'}</span></td>)}
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <div style={{marginTop:"1rem",padding:".85rem 1rem",background:"rgba(200,255,0,.05)",border:"1px solid rgba(200,255,0,.15)",borderRadius:"3px",display:"flex",gap:".6rem"}}>
+          <span>💡</span><p style={{fontSize:".8rem",color:C.sub,lineHeight:1.6}}>{ch.tip}</p>
+        </div>
+        <div style={{marginTop:".75rem",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:".5rem"}}>
+          {[["REGULAR","নিজের size"],["LOOSE","1 size বড়"],["BAGGY","2 size বড়"]].map(([l,d])=><div key={l} style={{textAlign:"center",padding:".6rem",border:"1px solid #1C1C22",borderRadius:"2px"}}><p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.ac,letterSpacing:".08em",marginBottom:".2rem"}}>{l}</p><p style={{fontSize:".72rem",color:C.sub}}>{d}</p></div>)}
+        </div>
+        <button onClick={onClose} style={{width:"100%",marginTop:"1rem",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:".85rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>GOT IT ✓</button>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════
+   PRODUCT CARD
+═══════════════════════════════════════════════ */
+function ProductCard({product,settings,onOpen,onQuickAdd}){
+  const[hov,setHov]=useState(false);
+  const ac=settings?.accentColor||C.ac;
+  return<div onClick={()=>onOpen(product)} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{background:C.sf,border:`1px solid ${hov?`rgba(${hexToRgb(ac)},.35)`:C.bd}`,borderRadius:"3px",overflow:"hidden",cursor:"pointer",transform:hov?"translateY(-5px)":"translateY(0)",transition:"all .3s",position:"relative"}}>
+    <div style={{aspectRatio:"3/4",position:"relative",overflow:"hidden"}}>
+      <Img src={product.image} cat={product.category}/>
+      {product.badge&&<span style={{position:"absolute",top:10,left:10,fontFamily:"'Space Mono',monospace",fontSize:".55rem",fontWeight:700,letterSpacing:".1em",padding:"3px 7px",borderRadius:"2px",background:product.badgeType==="warm"?C.warm:product.badgeType==="accent"?ac:C.bd,color:product.badgeType==="accent"?"#080809":"#fff"}}>{product.badge}</span>}
+      <button onClick={e=>{e.stopPropagation();onQuickAdd(product);}} style={{position:"absolute",bottom:0,left:0,right:0,background:`rgba(${hexToRgb(ac)},.96)`,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".68rem",fontWeight:700,letterSpacing:".1em",padding:".7rem",border:"none",cursor:"pointer",transform:hov?"translateY(0)":"translateY(100%)",transition:"transform .3s cubic-bezier(.22,1,.36,1)"}}>+ ADD TO CART</button>
+    </div>
+    <div style={{padding:".75rem"}}>
+      <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".1em",color:C.sub,marginBottom:".3rem"}}>{product.category.toUpperCase()}</p>
+      <p style={{fontWeight:500,fontSize:".875rem",marginBottom:".5rem",color:"#EAEAF0"}}>{product.name}</p>
+      <div style={{display:"flex",alignItems:"center",gap:".5rem"}}>
+        <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".875rem",color:ac}}>৳{product.price.toLocaleString()}</span>
+        {product.originalPrice>product.price&&<span style={{fontFamily:"'Space Mono',monospace",fontSize:".7rem",color:C.mt,textDecoration:"line-through"}}>৳{product.originalPrice.toLocaleString()}</span>}
+      </div>
+    </div>
+  </div>;
+}
+function hexToRgb(hex){try{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}catch{return"200,255,0";}}
+
+/* ═══════════════════════════════════════════════
+   PRODUCT DETAIL MODAL
+═══════════════════════════════════════════════ */
+function ProductModal({product,settings,onClose,onAdd}){
+  const[size,setSize]=useState("");const[qty,setQty]=useState(1);const[err,setErr]=useState(false);const[chart,setChart]=useState(false);
+  useEffect(()=>{setSize("");setQty(1);setErr(false);setChart(false);},[product]);
+  if(!product)return null;
+  const ac=settings?.accentColor||C.ac;
+  const disc=product.originalPrice>product.price;
+  const pct=disc?Math.round((1-product.price/product.originalPrice)*100):0;
+  return<>
+    {chart&&<SizeChartModal category={product.category} onClose={()=>setChart(false)}/>}
+    <div onClick={e=>{if(e.target===e.currentTarget&&!chart)onClose();}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",backdropFilter:"blur(10px)",zIndex:8500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:C.sf,border:`1px solid ${C.bd}`,width:"100%",maxWidth:"760px",maxHeight:"92vh",overflowY:"auto",borderRadius:"8px 8px 0 0",animation:"slideUp .4s cubic-bezier(.22,1,.36,1)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"1.1rem 1.5rem",borderBottom:`1px solid ${C.bd}`,position:"sticky",top:0,background:C.sf,zIndex:10}}>
+          <SLabel>PRODUCT DETAILS</SLabel>
+          <button onClick={onClose} style={{background:"none",border:"none",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".7rem",cursor:"pointer"}}>CLOSE ✕</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr"}}>
+          <div style={{aspectRatio:"4/3",overflow:"hidden",background:grad(product.category)}}><Img src={product.image} cat={product.category} fs="8rem" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+          <div style={{padding:"1.5rem",display:"flex",flexDirection:"column",gap:"1rem"}}>
+            <div>
+              <SLabel style={{marginBottom:".4rem"}}>{product.category.toUpperCase()}</SLabel>
+              <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.2rem",lineHeight:1.05,color:"#EAEAF0"}}>{product.name}</h2>
+              {product.description&&<p style={{color:C.sub,fontSize:".875rem",lineHeight:1.7,marginTop:".6rem"}}>{product.description}</p>}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:".75rem"}}>
+              <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:"1.4rem",color:ac}}>৳{product.price.toLocaleString()}</span>
+              {disc&&<><span style={{fontFamily:"'Space Mono',monospace",fontSize:".875rem",color:C.mt,textDecoration:"line-through"}}>৳{product.originalPrice.toLocaleString()}</span><span style={{background:C.warm,color:"#fff",fontFamily:"'Space Mono',monospace",fontSize:".58rem",fontWeight:700,padding:"2px 6px",borderRadius:"2px"}}>SAVE {pct}%</span></>}
+            </div>
+            <div style={{height:"1px",background:C.bd}}/>
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:".75rem"}}>
+                <p style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".18em",color:err?C.warm:C.sub}}>{err?"⚠️ সাইজ বেছে নাও!":"SELECT SIZE"}{size&&<span style={{color:ac,marginLeft:".5rem"}}>— {size}</span>}</p>
+                <button onClick={()=>setChart(true)} style={{display:"flex",alignItems:"center",gap:".35rem",background:"transparent",border:`1px solid ${C.bd}`,color:ac,fontFamily:"'Space Mono',monospace",fontSize:".55rem",letterSpacing:".1em",padding:".3rem .7rem",borderRadius:"2px",cursor:"pointer"}}>📏 SIZE CHART</button>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:".5rem"}}>
+                {SIZES.map(sz=><button key={sz} onClick={()=>setSize(sz)} style={{fontFamily:"'Space Mono',monospace",fontSize:".65rem",fontWeight:700,letterSpacing:".08em",padding:".5rem .9rem",borderRadius:"2px",cursor:"pointer",border:`1px solid ${size===sz?ac:C.bd}`,background:size===sz?ac:"transparent",color:size===sz?"#080809":C.sub,transition:"all .18s"}}>{sz}</button>)}
+              </div>
+            </div>
+            <div>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".18em",color:C.sub,marginBottom:".75rem"}}>QUANTITY</p>
+              <div style={{display:"flex",alignItems:"center",gap:".75rem"}}>
+                {["-","+"].map((sym,i)=><button key={sym} onClick={()=>setQty(q=>Math.max(1,Math.min(10,q+(i===0?-1:1))))} style={{width:36,height:36,border:`1px solid ${C.bd}`,background:"transparent",color:"#EAEAF0",fontSize:"1.1rem",cursor:"pointer",borderRadius:"2px",transition:"border-color .2s"}}>{sym}</button>)}
+                <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:"1.1rem",minWidth:"2rem",textAlign:"center"}}>{qty}</span>
+              </div>
+            </div>
+            <div style={{height:"1px",background:C.bd}}/>
+            <button onClick={()=>{if(!size){setErr(true);setTimeout(()=>setErr(false),2000);return;}onAdd(product,size,qty);onClose();}} style={{width:"100%",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".8rem",padding:"1rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>ADD TO CART → ({qty} × ৳{(product.price*qty).toLocaleString()})</button>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.mt,textAlign:"center"}}>সাইজ নিয়ে সন্দেহ? SIZE CHART দেখো।</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </>;
+}
+
+/* ═══════════════════════════════════════════════
+   CART + ORDERS DRAWER
+═══════════════════════════════════════════════ */
+function CartDrawer({cart,open,tab,onTab,onClose,onRemove,onClear,onCheckout,settings}){
+  const[orders,setOrders]=useState(()=>LS.get("plexo_orders",[]));
+  useEffect(()=>{if(open)setOrders(LS.get("plexo_orders",[]));},[ open,tab]);
+  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const qty=cart.reduce((s,i)=>s+i.qty,0);
+  const ac=settings?.accentColor||C.ac;
+  const pending=orders.filter(o=>o.status==="Pending").length;
+  return<>
+    {open&&<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",backdropFilter:"blur(4px)",zIndex:7999}}/>}
+    <div style={{position:"fixed",top:0,right:open?0:"-100%",bottom:0,width:"min(440px,100vw)",background:C.sf,borderLeft:`1px solid ${C.bd}`,zIndex:8000,transition:"right .4s cubic-bezier(.22,1,.36,1)",display:"flex",flexDirection:"column"}}>
+      <div style={{flexShrink:0,borderBottom:`1px solid ${C.bd}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"1rem 1.25rem"}}>
+          <div style={{display:"flex",gap:0}}>
+            <button onClick={()=>onTab("cart")} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'Space Mono',monospace",fontSize:".68rem",fontWeight:700,letterSpacing:".1em",padding:".5rem 1rem",color:tab==="cart"?ac:C.sub,borderBottom:`2px solid ${tab==="cart"?ac:"transparent"}`,transition:"all .2s"}}>🛍 CART{qty>0&&<span style={{background:ac,color:"#080809",borderRadius:"50%",width:18,height:18,fontSize:".5rem",fontWeight:700,display:"inline-flex",alignItems:"center",justifyContent:"center",marginLeft:".35rem"}}>{qty}</span>}</button>
+            <button onClick={()=>{setOrders(LS.get("plexo_orders",[]));onTab("orders");}} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'Space Mono',monospace",fontSize:".68rem",fontWeight:700,letterSpacing:".1em",padding:".5rem 1rem",color:tab==="orders"?ac:C.sub,borderBottom:`2px solid ${tab==="orders"?ac:"transparent"}`,transition:"all .2s"}}>📦 MY ORDERS{pending>0&&<span style={{background:SB.Pending,color:SC.Pending,borderRadius:"2px",padding:"1px 5px",fontSize:".5rem",marginLeft:".35rem"}}>{pending}</span>}</button>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".7rem"}}>CLOSE ✕</button>
+        </div>
+      </div>
+      {tab==="cart"&&<>
+        <div style={{flex:1,overflowY:"auto",padding:"1.25rem"}}>
+          {cart.length===0?<div style={{textAlign:"center",paddingTop:"3rem"}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:C.mt}}>EMPTY</p><p style={{color:C.sub,fontSize:".875rem",marginTop:".5rem"}}>Product add করো!</p></div>
+          :cart.map(item=><div key={item.cid} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:".75rem",paddingBottom:".75rem",marginBottom:".75rem",borderBottom:`1px solid ${C.bd}`}}>
+            <div style={{flex:1,minWidth:0}}><p style={{fontSize:".875rem",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</p><p style={{fontFamily:"'Space Mono',monospace",fontSize:".65rem",color:C.sub,marginTop:".2rem"}}>৳{item.price.toLocaleString()} × {item.qty}</p></div>
+            <div style={{display:"flex",alignItems:"center",gap:".75rem",flexShrink:0}}><span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".875rem",color:ac}}>৳{(item.price*item.qty).toLocaleString()}</span><button onClick={()=>onRemove(item.cid)} style={{background:"none",border:"none",color:C.mt,fontSize:"1.2rem",cursor:"pointer"}}>×</button></div>
+          </div>)}
+        </div>
+        {cart.length>0&&<div style={{borderTop:`1px solid ${C.bd}`,padding:"1.25rem",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:".75rem"}}><span style={{fontFamily:"'Space Mono',monospace",fontSize:".75rem",color:C.sub}}>SUBTOTAL</span><span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:"1.1rem",color:ac}}>৳{total.toLocaleString()}</span></div>
+          {settings?.deliveryCharge>0&&<p style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:C.sub,marginBottom:".5rem"}}>Delivery charge: ৳{settings.deliveryCharge}</p>}
+          <button onClick={onCheckout} style={{width:"100%",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".8rem",padding:"1rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>PLACE ORDER →</button>
+          <button onClick={onClear} style={{width:"100%",marginTop:".5rem",background:"none",border:"none",color:C.mt,fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".5rem",cursor:"pointer"}}>CLEAR CART</button>
+        </div>}
+      </>}
+      {tab==="orders"&&<div style={{flex:1,overflowY:"auto",padding:"1.25rem"}}>
+        {orders.length===0?<div style={{textAlign:"center",paddingTop:"3rem"}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:C.mt}}>NO ORDERS</p><p style={{color:C.sub,fontSize:".875rem",marginTop:".5rem"}}>এখনো কোনো order নেই।</p></div>
+        :<div style={{display:"flex",flexDirection:"column",gap:".75rem"}}>
+          <button onClick={()=>setOrders(LS.get("plexo_orders",[]))} style={{background:"rgba(200,255,0,.06)",border:"1px solid rgba(200,255,0,.2)",color:ac,fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".5rem",cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>🔄 REFRESH STATUS</button>
+          {orders.map(o=><div key={o.id} style={{background:"#080809",border:`1px solid ${C.bd}`,borderRadius:"3px",padding:"1rem"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:".6rem"}}>
+              <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.sub,marginBottom:".2rem"}}>{o.timestamp}</p><p style={{fontFamily:"'Space Mono',monospace",fontSize:".65rem",color:ac,fontWeight:700}}>{o.id}</p></div>
+              <StatusBadge status={o.status}/>
+            </div>
+            <div style={{borderTop:`1px solid ${C.bd}`,paddingTop:".6rem",marginBottom:".6rem"}}>
+              {o.items.map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:".25rem"}}><span style={{fontSize:".8rem"}}>{it.name} × {it.qty}</span><span style={{fontFamily:"'Space Mono',monospace",fontSize:".75rem",color:ac}}>৳{(it.price*it.qty).toLocaleString()}</span></div>)}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.bd}`,paddingTop:".6rem"}}>
+              <p style={{fontSize:".78rem",color:C.sub}}>{o.customer.name} · {o.customer.payment}</p>
+              <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:ac}}>৳{o.total.toLocaleString()}</span>
+            </div>
+            <div style={{marginTop:".75rem",display:"flex",gap:".3rem",alignItems:"center"}}>
+              {["Pending","Confirmed","Delivered"].map((st,i)=>{
+                const idx=["Pending","Confirmed","Delivered","Cancelled"].indexOf(o.status||"Pending");
+                const done=o.status!=="Cancelled"&&i<=idx;
+                const active=["Pending","Confirmed","Delivered","Cancelled"][idx]===st;
+                return<React.Fragment key={st}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1}}>
+                    <div style={{width:24,height:24,borderRadius:"50%",background:done?ac:"#1C1C22",border:`2px solid ${done?ac:C.bd}`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:".25rem",transition:"all .3s"}}>{done&&<span style={{fontSize:".6rem",color:"#080809",fontWeight:700}}>✓</span>}</div>
+                    <p style={{fontFamily:"'Space Mono',monospace",fontSize:".42rem",color:active?ac:C.sub,textAlign:"center",letterSpacing:".05em"}}>{st.toUpperCase()}</p>
+                  </div>
+                  {i<2&&<div style={{flex:1,height:2,background:done&&i<idx?ac:C.bd,marginBottom:"1.2rem",transition:"background .3s"}}/>}
+                </React.Fragment>;
+              })}
+              {o.status==="Cancelled"&&<span style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:SC.Cancelled,marginLeft:"auto"}}>❌ CANCELLED</span>}
+            </div>
+          </div>)}
+        </div>}
+      </div>}
+    </div>
+  </>;
+}
+
+/* ═══════════════════════════════════════════════
+   ORDER CONFIRMATION SCREEN
+═══════════════════════════════════════════════ */
+function OrderConfirm({order,settings,onClose,onViewOrders}){
+  const ac=settings?.accentColor||C.ac;
+  return<div style={{position:"fixed",inset:0,background:"#080809",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem",overflowY:"auto",animation:"fadeIn .4s ease"}}>
+    <div style={{width:"100%",maxWidth:460}}>
+      <div style={{textAlign:"center",marginBottom:"2rem"}}>
+        <div style={{width:72,height:72,borderRadius:"50%",background:"rgba(200,255,0,.1)",border:`2px solid ${ac}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem",fontSize:"2rem"}}>✅</div>
+        <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"3rem",color:ac,letterSpacing:".05em",lineHeight:1}}>ORDER PLACED!</h1>
+        <p style={{color:C.sub,fontSize:".9rem",marginTop:".5rem",lineHeight:1.6}}>তোমার order সফলভাবে receive হয়েছে।<br/>আমরা শীঘ্রই তোমাকে call করব।</p>
+      </div>
+      <div style={{background:C.sf,border:`1px solid ${C.bd}`,borderRadius:"4px",padding:"1.25rem",marginBottom:"1rem"}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:"1rem",paddingBottom:"1rem",borderBottom:`1px solid ${C.bd}`}}>
+          <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:C.sub,marginBottom:".2rem"}}>ORDER ID</p><p style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:ac,fontSize:".85rem"}}>{order.id}</p></div>
+          <div style={{textAlign:"right"}}><p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:C.sub,marginBottom:".2rem"}}>TOTAL</p><p style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:ac,fontSize:"1.1rem"}}>৳{order.total.toLocaleString()}</p></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".75rem",marginBottom:"1rem"}}>
+          <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.sub,marginBottom:".2rem"}}>নাম</p><p style={{fontSize:".875rem",fontWeight:500}}>{order.customer.name}</p></div>
+          <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.sub,marginBottom:".2rem"}}>PHONE</p><p style={{fontSize:".875rem",fontWeight:500}}>{order.customer.phone}</p></div>
+          <div style={{gridColumn:"1/-1"}}><p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.sub,marginBottom:".2rem"}}>ঠিকানা</p><p style={{fontSize:".875rem"}}>{order.customer.address}{order.customer.district?", "+order.customer.district:""}</p></div>
+        </div>
+        <div style={{borderTop:`1px solid ${C.bd}`,paddingTop:".75rem"}}>
+          {order.items.map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:".3rem"}}><span style={{fontSize:".875rem"}}>{it.name} × {it.qty}</span><span style={{fontFamily:"'Space Mono',monospace",fontSize:".8rem",color:ac}}>৳{(it.price*it.qty).toLocaleString()}</span></div>)}
+        </div>
+      </div>
+      <div style={{background:"rgba(200,255,0,.04)",border:"1px solid rgba(200,255,0,.15)",borderRadius:"3px",padding:"1rem",marginBottom:"1rem"}}>
+        <SLabel style={{marginBottom:".75rem"}}>📋 NEXT STEPS</SLabel>
+        {[["1","তোমার phone-এ আমাদের call আসবে"],["2","Order confirm হলে delivery-তে পাঠানো হবে"],["3","Delivery-তে cash/bKash দিলেই হবে"]].map(([n,t])=><div key={n} style={{display:"flex",gap:".75rem",alignItems:"flex-start",marginBottom:".5rem"}}><span style={{width:22,height:22,borderRadius:"50%",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".58rem",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</span><p style={{fontSize:".8rem",color:C.sub,lineHeight:1.5}}>{t}</p></div>)}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:".6rem"}}>
+        <button onClick={onViewOrders} style={{width:"100%",background:"#080809",color:ac,fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:".85rem",border:`1px solid ${ac}`,cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>📦 ORDER TRACK করো</button>
+        <button onClick={onClose} style={{width:"100%",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:".85rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>← CONTINUE SHOPPING</button>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.mt,textAlign:"center"}}>Order ID টা screenshot করে রাখো।</p>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════
+   ORDER FORM DRAWER
+═══════════════════════════════════════════════ */
+function OrderDrawer({cart,open,onClose,onSuccess,settings}){
+  const[form,setForm]=useState({name:"",phone:"",address:"",district:"",payment:"COD",note:""});
+  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const delivery=settings?.deliveryCharge||0;
+  const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const ac=settings?.accentColor||C.ac;
+  const inp={...INP};const lbl={...LBL};
+  const submit=()=>{
+    if(!form.name.trim()||!form.phone.trim()||!form.address.trim()){alert("নাম, ফোন এবং ঠিকানা বাধ্যতামূলক!");return;}
+    if(!cart.length){alert("Cart empty!");return;}
+    const order={id:"ORD-"+Date.now(),timestamp:new Date().toLocaleString("en-BD",{hour12:true}),customer:{...form},items:cart.map(i=>({name:i.name,price:i.price,qty:i.qty})),total:total+delivery,status:"Pending"};
+    LS.set("plexo_orders",[order,...LS.get("plexo_orders",[])]);
+    setForm({name:"",phone:"",address:"",district:"",payment:"COD",note:""});
+    onClose();onSuccess(order);
+  };
+  return<>
+    {open&&<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(5px)",zIndex:8099}}/>}
+    <div style={{position:"fixed",top:0,right:open?0:"-100%",bottom:0,width:"min(480px,100vw)",background:C.sf,borderLeft:`1px solid ${C.bd}`,zIndex:8100,transition:"right .4s cubic-bezier(.22,1,.36,1)",overflowY:"auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"1.1rem 1.25rem",borderBottom:`1px solid ${C.bd}`,position:"sticky",top:0,background:C.sf,zIndex:10}}>
+        <div><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.4rem",color:"#EAEAF0",letterSpacing:".05em"}}>PLACE ORDER</p><SLabel>FILL YOUR DETAILS</SLabel></div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".7rem",cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{padding:"1rem 1.25rem",borderBottom:`1px solid ${C.bd}`,background:C.bg}}>
+        <SLabel style={{marginBottom:".75rem"}}>YOUR ORDER</SLabel>
+        {cart.map(i=><div key={i.cid} style={{display:"flex",justifyContent:"space-between",marginBottom:".4rem"}}><span style={{fontSize:".875rem"}}>{i.name} × {i.qty}</span><span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:ac,fontSize:".875rem"}}>৳{(i.price*i.qty).toLocaleString()}</span></div>)}
+        {delivery>0&&<div style={{display:"flex",justifyContent:"space-between",marginTop:".4rem"}}><span style={{fontSize:".8rem",color:C.sub}}>Delivery charge</span><span style={{fontFamily:"'Space Mono',monospace",color:C.sub,fontSize:".8rem"}}>৳{delivery}</span></div>}
+        <div style={{display:"flex",justifyContent:"space-between",paddingTop:".75rem",borderTop:`1px solid ${C.bd}`,marginTop:".5rem"}}><span style={{fontFamily:"'Space Mono',monospace",fontSize:".7rem",color:C.sub}}>TOTAL</span><span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:ac}}>৳{(total+delivery).toLocaleString()}</span></div>
+      </div>
+      <div style={{padding:"1.25rem",display:"flex",flexDirection:"column",gap:"1rem"}}>
+        <SLabel>DELIVERY INFO</SLabel>
+        <div><label style={lbl}>FULL NAME *</label><input style={inp} value={form.name} onChange={e=>upd("name",e.target.value)} placeholder="তোমার পুরো নাম"/></div>
+        <div><label style={lbl}>PHONE NUMBER *</label><input style={inp} value={form.phone} onChange={e=>upd("phone",e.target.value)} placeholder="01XXXXXXXXX"/></div>
+        <div><label style={lbl}>DELIVERY ADDRESS *</label><textarea style={{...inp,resize:"vertical"}} rows={3} value={form.address} onChange={e=>upd("address",e.target.value)} placeholder="বাড়ি/রাস্তা, এলাকা, শহর"/></div>
+        <div><label style={lbl}>DISTRICT</label><select style={inp} value={form.district} onChange={e=>upd("district",e.target.value)}><option value="">জেলা বেছে নাও</option>{DISTRICTS.map(d=><option key={d}>{d}</option>)}</select></div>
+        <div><label style={lbl}>PAYMENT METHOD</label>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".5rem"}}>
+            {(settings?.codAvailable!==false?["COD"]:[]
+            ).concat(["bKash / Nagad"]).map(m=><label key={m} style={{display:"flex",alignItems:"center",gap:".5rem",border:`1px solid ${form.payment===m?ac:C.bd}`,padding:".75rem",cursor:"pointer",borderRadius:"2px",fontSize:".875rem",transition:"border-color .2s"}}><input type="radio" name="pay" checked={form.payment===m} onChange={()=>upd("payment",m)} style={{accentColor:ac}}/>{m==="COD"?"Cash on Delivery":m}</label>)}
+          </div>
+        </div>
+        <div><label style={lbl}>SPECIAL NOTE (optional)</label><textarea style={{...inp,resize:"vertical"}} rows={2} value={form.note} onChange={e=>upd("note",e.target.value)} placeholder="Size preference, color, etc."/></div>
+        <button onClick={submit} style={{width:"100%",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".8rem",padding:"1rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px",marginTop:".5rem"}}>✅ CONFIRM ORDER</button>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.mt,textAlign:"center"}}>1-2 ঘন্টার মধ্যে call করে confirm করব।</p>
+      </div>
+    </div>
+  </>;
+}
+
+/* ═══════════════════════════════════════════════
+   PRODUCT FORM (used inside Admin)
+═══════════════════════════════════════════════ */
+function ProductForm({initial,onSave,onClose}){
+  const[f,setF]=useState({id:initial?.id||"",name:initial?.name||"",category:initial?.category||"",price:initial?.price||"",originalPrice:initial?.originalPrice||"",badge:initial?.badge||"",badgeType:initial?.badgeType||"accent",image:initial?.image||"",description:initial?.description||""});
+  const u=(k,v)=>setF(x=>({...x,[k]:v}));
+  const[cats,setCats]=useState(()=>getCats());
+  const[newCat,setNewCat]=useState("");const[showNew,setShowNew]=useState(false);
+  const addCat=()=>{const t=newCat.trim();if(!t)return;if(cats.map(c=>c.toLowerCase()).includes(t.toLowerCase())){alert("Already exists!");return;}const up=[...cats,t];setCats(up);LS.set("plexo_cats",up);u("category",t);setNewCat("");setShowNew(false);};
+  const delCat=cat=>{if(!window.confirm(`"${cat}" delete করবে?`))return;const up=cats.filter(c=>c!==cat);setCats(up);LS.set("plexo_cats",up);if(f.category===cat)u("category","");};
+  const inp={...INP};const lbl={...LBL};
+  return<div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.82)",backdropFilter:"blur(6px)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div style={{background:"#0D0D10",border:`1px solid ${C.bd}`,borderRadius:"4px",width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"1rem 1.25rem",borderBottom:`1px solid ${C.bd}`,position:"sticky",top:0,background:"#0D0D10"}}>
+        <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.4rem",color:"#EAEAF0",letterSpacing:".05em"}}>{initial?"EDIT PRODUCT":"ADD PRODUCT"}</p>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.sub,fontSize:"1.1rem",cursor:"pointer"}}>✕</button>
+      </div>
+      <div style={{padding:"1.25rem",display:"flex",flexDirection:"column",gap:"1rem"}}>
+        <div><label style={lbl}>PRODUCT NAME *</label><input style={inp} value={f.name} onChange={e=>u("name",e.target.value)} placeholder="Phantom Black Tee"/></div>
+        <div>
+          <label style={lbl}>CATEGORY *</label>
+          <select style={inp} value={f.category} onChange={e=>{if(e.target.value==="__new__"){setShowNew(true);}else{u("category",e.target.value);setShowNew(false);}}}>
+            <option value="">বেছে নাও</option>
+            {cats.map(c=><option key={c} value={c}>{c}</option>)}
+            <option value="__new__">➕ নতুন category যোগ করো</option>
+          </select>
+          {showNew&&<div style={{marginTop:".5rem",display:"flex",gap:".4rem"}}>
+            <input autoFocus style={{...inp,flex:1,fontSize:".8rem",padding:".5rem .75rem"}} value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCat()} placeholder="নতুন category লেখো..."/>
+            <button onClick={addCat} style={{background:C.ac,color:"#080809",border:"none",cursor:"pointer",borderRadius:"2px",padding:"0 .9rem",fontFamily:"'Space Mono',monospace",fontSize:".68rem",fontWeight:700}}>ADD</button>
+            <button onClick={()=>{setShowNew(false);setNewCat("");}} style={{background:"#1C1C22",color:C.sub,border:"none",cursor:"pointer",borderRadius:"2px",padding:"0 .65rem",fontSize:"1rem"}}>✕</button>
+          </div>}
+          <div style={{marginTop:".6rem",background:"#080809",border:`1px solid ${C.bd}`,borderRadius:"3px",padding:".75rem"}}>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",letterSpacing:".1em",color:C.ac,marginBottom:".5rem"}}>📂 CATEGORIES — click করে select, ✕ দিয়ে delete</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:".4rem"}}>
+              {cats.map(cat=><div key={cat} style={{display:"flex",alignItems:"center",gap:".25rem",background:f.category===cat?"rgba(200,255,0,.12)":"#1C1C22",border:`1px solid ${f.category===cat?C.ac:C.bd}`,borderRadius:"2px",padding:".3rem .55rem .3rem .7rem",cursor:"pointer"}} onClick={()=>u("category",cat)}>
+                <span style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:f.category===cat?C.ac:"#EAEAF0",letterSpacing:".05em"}}>{cat}</span>
+                <button onClick={e=>{e.stopPropagation();delCat(cat);}} style={{background:"none",border:"none",cursor:"pointer",color:C.mt,fontSize:".72rem",lineHeight:1,padding:"0 .1rem",marginLeft:".2rem"}}>✕</button>
+              </div>)}
+              <button onClick={()=>setShowNew(true)} style={{background:"transparent",border:`1px dashed ${C.bd}`,color:C.sub,borderRadius:"2px",padding:".3rem .7rem",fontFamily:"'Space Mono',monospace",fontSize:".6rem",cursor:"pointer"}}>+ ADD NEW</button>
+            </div>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+          <div><label style={lbl}>SALE PRICE (৳) *</label><input type="number" style={inp} value={f.price} onChange={e=>u("price",e.target.value)} placeholder="1299"/></div>
+          <div><label style={lbl}>ORIGINAL PRICE (৳)</label><input type="number" style={inp} value={f.originalPrice} onChange={e=>u("originalPrice",e.target.value)} placeholder="1799"/></div>
+        </div>
+        <div><label style={lbl}>DESCRIPTION</label><textarea style={{...inp,resize:"vertical"}} rows={3} value={f.description} onChange={e=>u("description",e.target.value)} placeholder="Material, fit, details..."/></div>
+        <div>
+          <label style={lbl}>IMAGE URL (i.ibb.co/... format)</label>
+          <input style={inp} value={f.image} onChange={e=>u("image",e.target.value)} placeholder="https://i.ibb.co/ABC/photo.jpg"/>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.mt,marginTop:".35rem"}}>⚠️ ImgBB থেকে "Direct link" copy করো (i.ibb.co দিয়ে শুরু)</p>
+          {f.image&&<div style={{marginTop:".65rem",width:72,height:90,borderRadius:"2px",overflow:"hidden",border:`1px solid ${C.bd}`}}><Img src={f.image} cat={f.category} fs="1.2rem"/></div>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+          <div><label style={lbl}>BADGE</label><select style={inp} value={f.badge} onChange={e=>u("badge",e.target.value)}><option value="">None</option><option value="NEW">NEW</option><option value="HOT">HOT</option><option value="SALE">SALE</option><option value="SOLD OUT SOON">SOLD OUT SOON</option></select></div>
+          <div><label style={lbl}>BADGE COLOR</label><select style={inp} value={f.badgeType} onChange={e=>u("badgeType",e.target.value)}><option value="accent">🟡 Lime</option><option value="warm">🔴 Orange</option><option value="muted">⚫ Dark</option></select></div>
+        </div>
+        <div style={{display:"flex",gap:".75rem",paddingTop:".5rem"}}>
+          <button onClick={()=>{if(!f.name||!f.category||!f.price){alert("নাম, category এবং price দাও!");return;}onSave({...f,price:Number(f.price),originalPrice:Number(f.originalPrice)||Number(f.price)});}} style={{flex:1,background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".72rem",padding:".75rem",border:"none",cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>💾 SAVE PRODUCT</button>
+          <button onClick={onClose} style={{background:"transparent",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",padding:".75rem 1.25rem",border:`1px solid ${C.bd}`,cursor:"pointer",borderRadius:"2px"}}>CANCEL</button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════
+   ADMIN LOGIN
+═══════════════════════════════════════════════ */
+function AdminLogin({onSuccess,onBack}){
+  const[pw,setPw]=useState("");const[show,setShow]=useState(false);const[err,setErr]=useState(false);
+  const check=()=>{if(pw===LS.get("plexo_admin_pw","plexo2025")){LS.set("plexo_admin_session",true);onSuccess();}else{setErr(true);setPw("");setTimeout(()=>setErr(false),2000);}};
+  return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div style={{background:"#0D0D10",border:`1px solid ${C.bd}`,borderRadius:"6px",width:"100%",maxWidth:360,padding:"2rem"}}>
+      <div style={{marginBottom:"1.75rem"}}><Logo/></div>
+      <SLabel style={{marginBottom:"1.25rem"}}>🔐 LOGIN TO CONTINUE</SLabel>
+      <div style={{marginBottom:"1rem"}}>
+        <label style={LBL}>PASSWORD</label>
+        <div style={{position:"relative"}}>
+          <input type={show?"text":"password"} value={pw} autoFocus onChange={e=>{setPw(e.target.value);setErr(false);}} onKeyDown={e=>e.key==="Enter"&&check()} placeholder="••••••••" style={{...INP,letterSpacing:show?".05em":".2em",border:`1px solid ${err?C.warm:C.bd}`}}/>
+          <button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:".75rem",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.sub,fontSize:"1rem",padding:0}}>{show?"🙈":"👁️"}</button>
+        </div>
+        {err&&<p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.warm,marginTop:".5rem"}}>❌ Wrong password!</p>}
+      </div>
+      <button onClick={check} style={{width:"100%",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:".85rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>LOGIN →</button>
+      <button onClick={onBack} style={{width:"100%",marginTop:".75rem",background:"none",border:"none",cursor:"pointer",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".12em",padding:".5rem"}}>← BACK TO STORE</button>
+      <p style={{fontFamily:"'Space Mono',monospace",fontSize:".5rem",color:C.mt,textAlign:"center",marginTop:".75rem"}}>Default password: plexo2025</p>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════
+   ADMIN DASHBOARD TABS
+═══════════════════════════════════════════════ */
+
+/* --- Overview tab --- */
+function OverviewTab({products,onGoProducts,onGoOrders}){
+  const orders=LS.get("plexo_orders",[]);
+  const pending=orders.filter(o=>o.status==="Pending").length;
+  const revenue=orders.filter(o=>o.status!=="Cancelled").reduce((s,o)=>s+o.total,0);
+  const stats=[{l:"PRODUCTS",v:products.length,cl:C.ac,click:onGoProducts},{l:"ORDERS",v:orders.length,cl:"#EAEAF0",click:onGoOrders},{l:"PENDING",v:pending,cl:C.warm,click:onGoOrders},{l:"REVENUE",v:`৳${revenue.toLocaleString()}`,cl:C.ac,sm:true}];
+  return<div>
+    <SLabel style={{marginBottom:".4rem"}}>OVERVIEW</SLabel>
+    <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em",marginBottom:"1.5rem"}}>DASHBOARD</h1>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"1rem",marginBottom:"2rem"}}>
+      {stats.map(s=><div key={s.l} onClick={s.click} style={{...CARD,cursor:s.click?"pointer":"default",marginBottom:0,transition:"border-color .2s"}} onMouseOver={e=>{if(s.click)e.currentTarget.style.borderColor=C.ac;}} onMouseOut={e=>{e.currentTarget.style.borderColor=C.bd;}}>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",letterSpacing:".15em",color:C.sub,marginBottom:".5rem"}}>{s.l}</p>
+        <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:s.sm?"1.8rem":"2.5rem",color:s.cl,lineHeight:1}}>{s.v}</p>
+      </div>)}
+    </div>
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>RECENT ORDERS</SLabel>
+      {orders.length===0?<p style={{color:C.sub,fontSize:".875rem"}}>কোনো order নেই এখনও।</p>
+      :orders.slice(0,5).map(o=><div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:".6rem 0",borderBottom:`1px solid ${C.bd}`}}>
+        <div><p style={{fontSize:".875rem",fontWeight:500}}>{o.customer.name} <span style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:C.sub}}>· {o.customer.phone}</span></p><p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:C.mt,marginTop:".15rem"}}>{o.id}</p></div>
+        <div style={{textAlign:"right"}}><p style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:C.ac}}>৳{o.total.toLocaleString()}</p><StatusBadge status={o.status}/></div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+/* --- Products tab --- */
+function ProductsTab({products,onSave}){
+  const[showForm,setShowForm]=useState(false);const[editP,setEditP]=useState(null);
+  return<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:"1.5rem"}}>
+      <div><SLabel style={{marginBottom:".4rem"}}>MANAGE</SLabel><h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em"}}>PRODUCTS</h1></div>
+      <button onClick={()=>{setEditP(null);setShowForm(true);}} style={{background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".68rem",fontWeight:700,letterSpacing:".12em",padding:".65rem 1.25rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>+ ADD PRODUCT</button>
+    </div>
+    <div style={{background:"rgba(200,255,0,.04)",border:"1px solid rgba(200,255,0,.12)",borderRadius:"3px",padding:".75rem 1rem",marginBottom:"1.25rem",fontSize:".8rem",color:C.sub,lineHeight:1.6}}>
+      💡 Product card-এ click করে drag ↑↓ করে order বদলাতে পারবে না (localStorage limitation), কিন্তু Add করার সময় নতুন product সবার উপরে যাবে।
+    </div>
+    {products.length===0?<div style={{textAlign:"center",padding:"3rem 0"}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:C.mt}}>NO PRODUCTS YET</p><button onClick={()=>{setEditP(null);setShowForm(true);}} style={{marginTop:"1rem",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".7rem",padding:".65rem 1.25rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>+ ADD FIRST PRODUCT</button></div>
+    :products.map(p=><div key={p.id} style={{display:"flex",alignItems:"center",gap:"1rem",background:C.bg,border:`1px solid ${C.bd}`,borderRadius:"3px",padding:"1rem",marginBottom:".75rem"}}>
+      <div style={{width:56,height:72,flexShrink:0,borderRadius:"2px",overflow:"hidden"}}><Img src={p.image} cat={p.category} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+      <div style={{flex:1,minWidth:0}}>
+        <p style={{fontWeight:500,color:"#EAEAF0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:C.sub,letterSpacing:".08em",marginTop:".2rem"}}>{p.category}</p>
+        <div style={{display:"flex",gap:".5rem",marginTop:".3rem",alignItems:"center"}}>
+          <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".875rem",color:C.ac}}>৳{Number(p.price).toLocaleString()}</span>
+          {p.originalPrice>p.price&&<span style={{fontFamily:"'Space Mono',monospace",fontSize:".7rem",color:C.mt,textDecoration:"line-through"}}>৳{Number(p.originalPrice).toLocaleString()}</span>}
+          {p.badge&&<span style={{background:p.badgeType==="accent"?C.ac:p.badgeType==="warm"?C.warm:C.bd,color:p.badgeType==="accent"?"#080809":"#fff",fontFamily:"'Space Mono',monospace",fontSize:".52rem",padding:"2px 5px",borderRadius:"2px"}}>{p.badge}</span>}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:".5rem",flexShrink:0}}>
+        <button onClick={()=>{setEditP(p);setShowForm(true);}} style={{background:"#1C1C22",color:"#EAEAF0",fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".4rem .7rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>✏️ EDIT</button>
+        <button onClick={()=>{if(window.confirm("Delete করবে?"))onSave(products.filter(x=>x.id!==p.id));}} style={{background:C.warm,color:"#fff",fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".4rem .7rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>🗑</button>
+      </div>
+    </div>)}
+    {showForm&&<ProductForm initial={editP} onSave={p=>{const isEdit=editP&&p.id===editP.id;onSave(isEdit?products.map(x=>x.id===p.id?p:x):[{...p,id:"p"+Date.now()},...products]);setShowForm(false);setEditP(null);}} onClose={()=>{setShowForm(false);setEditP(null);}}/>}
+  </div>;
+}
+
+/* --- Categories tab --- */
+function CategoriesTab({showToast}){
+  const[cats,setCats]=useState(()=>getCats());
+  const[newCat,setNewCat]=useState("");
+  const saveCats=arr=>{setCats(arr);LS.set("plexo_cats",arr);};
+  const add=()=>{const t=newCat.trim();if(!t)return;if(cats.map(c=>c.toLowerCase()).includes(t.toLowerCase())){alert("Already exists!");return;}saveCats([...cats,t]);setNewCat("");showToast("✅ Category added!");};
+  const del=cat=>{if(!window.confirm(`"${cat}" delete করবে?`))return;saveCats(cats.filter(c=>c!==cat));showToast("🗑 Deleted!");};
+  const move=(i,dir)=>{const arr=[...cats];[arr[i],arr[i+dir]]=[arr[i+dir],arr[i]];saveCats(arr);};
+  const reset=()=>{if(!window.confirm("Default categories-এ ফিরে যাবে?"))return;saveCats(DEF_CATS);showToast("✅ Reset done!");};
+  return<div>
+    <SLabel style={{marginBottom:".4rem"}}>MANAGE</SLabel>
+    <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em",marginBottom:"1.5rem"}}>CATEGORIES</h1>
+    {/* Add new */}
+    <div style={CARD}>
+      <SLabel style={{marginBottom:".75rem"}}>➕ নতুন Category যোগ করো</SLabel>
+      <div style={{display:"flex",gap:".5rem"}}>
+        <input style={{...INP,flex:1}} value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="যেমন: Winter Collection, Denim, Caps..."/>
+        <button onClick={add} style={{background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".72rem",padding:".65rem 1.25rem",border:"none",cursor:"pointer",borderRadius:"2px",whiteSpace:"nowrap"}}>ADD ✓</button>
+      </div>
+    </div>
+    {/* Category list */}
+    <div style={CARD}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}}>
+        <SLabel>EXISTING CATEGORIES ({cats.length})</SLabel>
+        <button onClick={reset} style={{background:"transparent",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".58rem",padding:".35rem .7rem",border:`1px solid ${C.bd}`,cursor:"pointer",borderRadius:"2px"}}>↺ RESET</button>
+      </div>
+      {cats.length===0?<p style={{color:C.sub,fontSize:".875rem"}}>কোনো category নেই।</p>
+      :cats.map((cat,i)=><div key={cat} style={{display:"flex",alignItems:"center",gap:".75rem",background:C.bg,border:`1px solid ${C.bd}`,borderRadius:"3px",padding:".75rem 1rem",marginBottom:".5rem"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:".2rem",flexShrink:0}}>
+          <button onClick={()=>i>0&&move(i,-1)} style={{background:"none",border:`1px solid ${C.bd}`,color:i===0?C.mt:C.sub,cursor:i===0?"not-allowed":"pointer",borderRadius:"2px",padding:"2px 6px",fontSize:".65rem",lineHeight:1}}>▲</button>
+          <button onClick={()=>i<cats.length-1&&move(i,1)} style={{background:"none",border:`1px solid ${C.bd}`,color:i===cats.length-1?C.mt:C.sub,cursor:i===cats.length-1?"not-allowed":"pointer",borderRadius:"2px",padding:"2px 6px",fontSize:".65rem",lineHeight:1}}>▼</button>
+        </div>
+        <div style={{flex:1,display:"flex",alignItems:"center",gap:".5rem"}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:C.ac,flexShrink:0}}/>
+          <span style={{fontWeight:500,color:"#EAEAF0"}}>{cat}</span>
+        </div>
+        <span style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:C.sub,letterSpacing:".08em"}}>{LS.get("plexo_products",DEF_PRODUCTS).filter(p=>p.category===cat).length} products</span>
+        <button onClick={()=>del(cat)} style={{background:C.warm,color:"#fff",fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".35rem .65rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>🗑</button>
+      </div>)}
+    </div>
+    <div style={{background:"rgba(200,255,0,.04)",border:"1px solid rgba(200,255,0,.12)",borderRadius:"3px",padding:".75rem 1rem",fontSize:".8rem",color:C.sub,lineHeight:1.6}}>
+      💡 ▲▼ দিয়ে categories-এর order বদলাও। Delete করলে ওই category-র products থেকে যাবে, শুধু category নামটা সরবে।
+    </div>
+  </div>;
+}
+
+/* --- Orders tab --- */
+function OrdersTab({showToast}){
+  const[orders,setOrders]=useState(()=>LS.get("plexo_orders",[]));
+  const[filter,setFilter]=useState("All");
+  const upd=(id,status)=>{const u=orders.map(o=>o.id===id?{...o,status}:o);setOrders(u);LS.set("plexo_orders",u);showToast(`Order: ${status}`);};
+  const del=id=>{const u=orders.filter(o=>o.id!==id);setOrders(u);LS.set("plexo_orders",u);showToast("🗑 Deleted");};
+  const filtered=filter==="All"?orders:orders.filter(o=>o.status===filter);
+  return<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:"1.5rem",flexWrap:"wrap",gap:".75rem"}}>
+      <div><SLabel style={{marginBottom:".4rem"}}>MANAGE</SLabel><h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em"}}>ORDERS ({orders.length})</h1></div>
+      <button onClick={()=>{if(window.confirm("সব orders delete করবে?")){{const e=[];setOrders(e);LS.set("plexo_orders",e);showToast("🗑 All cleared");}}}} style={{background:"transparent",color:C.warm,fontFamily:"'Space Mono',monospace",fontSize:".62rem",padding:".55rem 1rem",border:`1px solid ${C.warm}`,cursor:"pointer",borderRadius:"2px"}}>🗑 CLEAR ALL</button>
+    </div>
+    {/* Filter bar */}
+    <div style={{display:"flex",gap:".4rem",marginBottom:"1.25rem",flexWrap:"wrap"}}>
+      {["All","Pending","Confirmed","Delivered","Cancelled"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".08em",padding:".4rem .85rem",borderRadius:"2px",border:`1px solid ${filter===f?C.ac:C.bd}`,background:filter===f?"rgba(200,255,0,.1)":"transparent",color:filter===f?C.ac:C.sub,cursor:"pointer"}}>{f} {f==="All"?`(${orders.length})`:f==="Pending"?`(${orders.filter(o=>o.status===f).length})`:""}</button>)}
+    </div>
+    {filtered.length===0?<div style={{textAlign:"center",padding:"3rem 0"}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:C.mt}}>NO ORDERS</p><p style={{color:C.sub,fontSize:".875rem",marginTop:".5rem"}}>Customer order করলে এখানে দেখাবে।</p></div>
+    :filtered.map(o=><div key={o.id} style={{...CARD,marginBottom:".75rem"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",marginBottom:".75rem"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".3rem"}}><span style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:C.ac}}>{o.id}</span><StatusBadge status={o.status}/></div>
+          <p style={{fontWeight:500,fontSize:"1rem"}}>{o.customer.name}</p>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".62rem",color:C.sub,marginTop:".2rem"}}>{o.customer.phone} · {o.customer.district}</p>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:C.mt,marginTop:".15rem"}}>{o.timestamp}</p>
+        </div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <p style={{fontFamily:"'Space Mono',monospace",fontWeight:700,color:C.ac,fontSize:"1.1rem"}}>৳{o.total.toLocaleString()}</p>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:C.sub,marginTop:".2rem"}}>{o.customer.payment}</p>
+        </div>
+      </div>
+      <div style={{borderTop:`1px solid ${C.bd}`,paddingTop:".6rem",marginBottom:".6rem"}}>
+        <p style={{fontSize:".8rem",color:C.sub,marginBottom:".3rem"}}>📍 {o.customer.address}</p>
+        <p style={{fontSize:".8rem",color:C.sub}}>{o.items.map(i=>`${i.name} ×${i.qty}`).join(" · ")}</p>
+        {o.customer.note&&<p style={{fontSize:".8rem",color:C.sub,marginTop:".3rem"}}>📝 {o.customer.note}</p>}
+      </div>
+      <div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>
+        {["Confirmed","Delivered","Cancelled"].map(st=><button key={st} onClick={()=>upd(o.id,st)} style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",padding:".4rem .85rem",border:"none",cursor:"pointer",borderRadius:"2px",background:SB[st],color:SC[st]}}>{st==="Confirmed"?"✅ CONFIRM":st==="Delivered"?"📦 DELIVERED":"❌ CANCEL"}</button>)}
+        <button onClick={()=>del(o.id)} style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",padding:".4rem .75rem",border:"none",cursor:"pointer",borderRadius:"2px",background:"#1C1C22",color:C.sub}}>🗑 DELETE</button>
+      </div>
+    </div>)}
+  </div>;
+}
+
+/* --- Store Customize tab --- */
+function StoreTab({settings,onSave,showToast}){
+  const[f,setF]=useState({...settings});
+  const u=(k,v)=>setF(x=>({...x,[k]:v}));
+  const save=()=>{onSave(f);showToast("✅ Store settings saved!");};
+  const inp={...INP};const lbl={...LBL};
+
+  // Preset themes
+  const THEMES=[
+    {name:"Electric Lime 🟡",accent:"#C8FF00",bg:"#080809",desc:"Default dark + lime"},
+    {name:"Fire Orange 🔴",accent:"#FF4D00",bg:"#080809",desc:"Dark + fiery orange"},
+    {name:"Ice Blue 🔵",accent:"#00BFFF",bg:"#080809",desc:"Dark + cool blue"},
+    {name:"Rose Gold 🌸",accent:"#FF6B9D",bg:"#080809",desc:"Dark + pink"},
+    {name:"Mint Green 🌿",accent:"#00FF88",bg:"#080809",desc:"Dark + mint"},
+    {name:"Gold ✨",accent:"#FFD700",bg:"#080809",desc:"Dark + gold"},
+    {name:"Purple 💜",accent:"#9B59B6",bg:"#080809",desc:"Dark + purple"},
+    {name:"White Clean ⚪",accent:"#FFFFFF",bg:"#080809",desc:"Dark + white"},
+  ];
+
+  return<div>
+    <SLabel style={{marginBottom:".4rem"}}>CUSTOMIZE</SLabel>
+    <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em",marginBottom:"1.5rem"}}>STORE SETTINGS</h1>
+
+    {/* ── QUICK THEME PRESETS ── */}
+    <div style={CARD}>
+      <SLabel style={{marginBottom:".4rem"}}>🎨 QUICK THEME PRESETS</SLabel>
+      <p style={{fontSize:".8rem",color:"#80808A",marginBottom:"1rem",lineHeight:1.5}}>এখানে click করলে সাথে সাথে color change হবে — পরে SAVE চাপো।</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:".6rem"}}>
+        {THEMES.map(t=>(
+          <div key={t.name} onClick={()=>{u("accentColor",t.accent);}} style={{border:`2px solid ${f.accentColor===t.accent?"#EAEAF0":"#1C1C22"}`,borderRadius:"4px",padding:".75rem",cursor:"pointer",transition:"border-color .2s",background:"#080809"}}>
+            <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".35rem"}}>
+              <div style={{width:18,height:18,borderRadius:"50%",background:t.accent,flexShrink:0}}/>
+              <span style={{fontFamily:"'Space Mono',monospace",fontSize:".6rem",color:"#EAEAF0",letterSpacing:".06em",fontWeight:700}}>{t.name}</span>
+            </div>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:".5rem",color:"#80808A",letterSpacing:".06em"}}>{t.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* ── CUSTOM COLOR PICKER ── */}
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>🖌️ CUSTOM COLORS — নিজে রঙ বেছে নাও</SLabel>
+
+      {/* Accent Color */}
+      <div style={{marginBottom:"1.25rem"}}>
+        <label style={{...lbl,marginBottom:".6rem"}}>ACCENT COLOR — Button, price, highlight-এ যে রঙ দেখাবে</label>
+        <div style={{display:"flex",alignItems:"center",gap:".75rem",flexWrap:"wrap"}}>
+          <input type="color" value={f.accentColor} onChange={e=>u("accentColor",e.target.value)} style={{width:52,height:44,borderRadius:"4px",border:"2px solid #1C1C22",background:"none",cursor:"pointer",padding:"2px",flexShrink:0}}/>
+          <input style={{...inp,width:130,fontFamily:"'Space Mono',monospace",fontSize:".8rem"}} value={f.accentColor} onChange={e=>u("accentColor",e.target.value)} placeholder="#C8FF00"/>
+          <div style={{display:"flex",gap:".4rem",flexWrap:"wrap"}}>
+            {["#C8FF00","#FF4D00","#00BFFF","#FF6B9D","#00FF88","#FFD700","#9B59B6","#FF6600","#FFFFFF","#F0E68C"].map(cl=>(
+              <div key={cl} onClick={()=>u("accentColor",cl)} title={cl} style={{width:26,height:26,borderRadius:"50%",background:cl,border:`2px solid ${f.accentColor===cl?"#fff":"transparent"}`,cursor:"pointer",transition:"all .15s",boxShadow:f.accentColor===cl?"0 0 0 2px #fff":"none"}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Live Preview */}
+      <div style={{background:"#080809",borderRadius:"4px",border:"1px solid #1C1C22",padding:"1rem",marginTop:".5rem"}}>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:"#80808A",letterSpacing:".12em",marginBottom:".75rem"}}>LIVE PREVIEW</p>
+        <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:".75rem"}}>
+          <span style={{background:f.accentColor,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".65rem",fontWeight:700,padding:".4rem .9rem",borderRadius:"2px",letterSpacing:".1em"}}>SHOP NOW ↓</span>
+          <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:"1rem",color:f.accentColor}}>৳1,299</span>
+          <span style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:f.accentColor,border:`1px solid ${f.accentColor}`,padding:".3rem .7rem",borderRadius:"2px"}}>📏 SIZE CHART</span>
+          <div style={{width:12,height:12,borderRadius:"50%",background:f.accentColor}}/>
+        </div>
+      </div>
+    </div>
+
+    {/* ── BRAND INFO ── */}
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>🏪 BRAND INFO</SLabel>
+      <div style={{display:"flex",flexDirection:"column",gap:".85rem"}}>
+        <div><label style={lbl}>BRAND NAME (Navbar ও Footer-এ দেখাবে)</label><input style={inp} value={f.brandName} onChange={e=>u("brandName",e.target.value)} placeholder="PLEXO"/></div>
+        <div><label style={lbl}>TAGLINE (Brand name-এর নিচে ছোট লেখা)</label><input style={inp} value={f.tagline} onChange={e=>u("tagline",e.target.value)} placeholder="UNIVERSAL SOLUTIONS"/></div>
+        <div><label style={lbl}>FOOTER TEXT (Footer-এর নিচে)</label><input style={inp} value={f.footerText} onChange={e=>u("footerText",e.target.value)} placeholder="MADE WITH ❤️ IN DHAKA"/></div>
+      </div>
+    </div>
+
+    {/* ── HERO SECTION ── */}
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>🦸 HERO SECTION (Homepage-এর বড় section)</SLabel>
+      <div style={{display:"flex",flexDirection:"column",gap:".85rem"}}>
+        <div><label style={lbl}>TITLE — সাধারণ লেখা (সাদা রঙ)</label><input style={inp} value={f.heroTitle} onChange={e=>u("heroTitle",e.target.value)} placeholder="DEFINE YOUR"/></div>
+        <div><label style={lbl}>TITLE — Outline লেখা (Accent color দিয়ে outline)</label><input style={inp} value={f.heroTitleOutline} onChange={e=>u("heroTitleOutline",e.target.value)} placeholder="UNIVERSE."/></div>
+        <div><label style={lbl}>SUBTITLE (নিচের ছোট লেখা)</label><textarea style={{...inp,resize:"vertical"}} rows={3} value={f.heroSub} onChange={e=>u("heroSub",e.target.value)} placeholder="Oversized. Unapologetic..."/></div>
+        <div><label style={lbl}>CTA BUTTON TEXT ("Shop Now" button-এর লেখা)</label><input style={inp} value={f.heroCTA} onChange={e=>u("heroCTA",e.target.value)} placeholder="SHOP NOW"/></div>
+      </div>
+    </div>
+
+    {/* ── TICKER ── */}
+    <div style={CARD}>
+      <SLabel style={{marginBottom:".5rem"}}>📢 ANNOUNCEMENT TICKER (উপরের scrolling text)</SLabel>
+      <p style={{fontSize:".8rem",color:"#80808A",marginBottom:".75rem",lineHeight:1.6}}>✦ দিয়ে আলাদা করো — যেমন: FREE DELIVERY ✦ COD AVAILABLE ✦ NEW DROPS</p>
+      <textarea style={{...inp,resize:"vertical"}} rows={3} value={f.tickerText} onChange={e=>u("tickerText",e.target.value)} placeholder="CASH ON DELIVERY ✦ NEW DROP EVERY FRIDAY ✦"/>
+    </div>
+
+    <button onClick={save} style={{width:"100%",background:f.accentColor,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".8rem",padding:"1rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>💾 SAVE ALL STORE SETTINGS</button>
+  </div>;
+}
+
+/* --- Delivery tab --- */
+function DeliveryTab({settings,onSave,showToast}){
+  const[f,setF]=useState({...settings});
+  const u=(k,v)=>setF(x=>({...x,[k]:v}));
+  const save=()=>{onSave(f);showToast("✅ Delivery settings saved!");};
+  const inp={...INP};const lbl={...LBL};
+  return<div>
+    <SLabel style={{marginBottom:".4rem"}}>CONFIGURE</SLabel>
+    <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em",marginBottom:"1.5rem"}}>DELIVERY SETTINGS</h1>
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>🚚 DELIVERY INFO</SLabel>
+      <div style={{display:"flex",flexDirection:"column",gap:".85rem"}}>
+        <div><label style={lbl}>DELIVERY CHARGE (৳) — 0 = Free</label><input type="number" style={inp} value={f.deliveryCharge} onChange={e=>u("deliveryCharge",Number(e.target.value))} placeholder="0"/></div>
+        <div><label style={lbl}>FREE DELIVERY AREA</label><input style={inp} value={f.freeDeliveryArea} onChange={e=>u("freeDeliveryArea",e.target.value)} placeholder="Dhaka"/></div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"1rem",background:C.bg,borderRadius:"3px",border:`1px solid ${C.bd}`}}>
+          <div><p style={{fontWeight:500,marginBottom:".2rem"}}>Cash on Delivery (COD)</p><p style={{fontSize:".8rem",color:C.sub}}>Customer deliver-এর সময় টাকা দিতে পারবে</p></div>
+          <button onClick={()=>u("codAvailable",!f.codAvailable)} style={{background:f.codAvailable?C.ac:"#1C1C22",border:"none",borderRadius:"20px",width:52,height:28,cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+            <span style={{position:"absolute",top:4,left:f.codAvailable?26:4,width:20,height:20,borderRadius:"50%",background:f.codAvailable?"#080809":"#888",transition:"left .2s"}}/>
+          </button>
+        </div>
+      </div>
+    </div>
+    <button onClick={save} style={{width:"100%",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".8rem",padding:"1rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>💾 SAVE DELIVERY SETTINGS</button>
+  </div>;
+}
+
+/* --- Social & Contact tab --- */
+function SocialTab({settings,onSave,showToast}){
+  const[f,setF]=useState({...settings});
+  const u=(k,v)=>setF(x=>({...x,[k]:v}));
+  const save=()=>{onSave(f);showToast("✅ Contact settings saved!");};
+  const inp={...INP};const lbl={...LBL};
+  return<div>
+    <SLabel style={{marginBottom:".4rem"}}>CONNECT</SLabel>
+    <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em",marginBottom:"1.5rem"}}>SOCIAL & CONTACT</h1>
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>📱 WHATSAPP</SLabel>
+      <div><label style={lbl}>WhatsApp Number (880 দিয়ে শুরু)</label><input style={inp} value={f.waNumber||""} onChange={e=>u("waNumber",e.target.value)} placeholder="8801712345678"/><p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",color:C.mt,marginTop:".4rem"}}>যেমন: 01712345678 → 8801712345678 (0 বাদ, শুরুতে 880)</p></div>
+      {f.waNumber&&f.waNumber.replace(/\D/g,"").length>=11&&<div style={{marginTop:".75rem",padding:".65rem .9rem",background:"#002a10",border:"1px solid #00ff7f44",borderRadius:"3px",display:"flex",alignItems:"center",gap:".5rem"}}><span>✅</span><span style={{fontSize:".8rem",color:"#00ff7f"}}>Valid number! Order দিলে এই নম্বরে notification পাবে।</span></div>}
+    </div>
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>📲 SOCIAL MEDIA LINKS</SLabel>
+      <div style={{display:"flex",flexDirection:"column",gap:".85rem"}}>
+        <div><label style={lbl}>INSTAGRAM (যেমন: @plexo.bd)</label><input style={inp} value={f.instagram||""} onChange={e=>u("instagram",e.target.value)} placeholder="@plexo.bd"/></div>
+        <div><label style={lbl}>TIKTOK (যেমন: @plexo_bd)</label><input style={inp} value={f.tiktok||""} onChange={e=>u("tiktok",e.target.value)} placeholder="@plexo_bd"/></div>
+        <div><label style={lbl}>FACEBOOK PAGE LINK</label><input style={inp} value={f.facebook||""} onChange={e=>u("facebook",e.target.value)} placeholder="https://facebook.com/plexo"/></div>
+      </div>
+    </div>
+    <button onClick={save} style={{width:"100%",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".8rem",padding:"1rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>💾 SAVE CONTACT SETTINGS</button>
+  </div>;
+}
+
+/* --- Security tab --- */
+function SecurityTab({showToast}){
+  const[newPw,setNewPw]=useState("");const[show,setShow]=useState(false);
+  const save=()=>{if(newPw.length<6){alert("কমপক্ষে ৬ character!");return;}LS.set("plexo_admin_pw",newPw);LS.set("plexo_admin_session",false);setNewPw("");showToast("✅ Password updated! Please re-login.");setTimeout(()=>window.location.reload(),1500);};
+  const inp={...INP};const lbl={...LBL};
+  return<div>
+    <SLabel style={{marginBottom:".4rem"}}>SECURITY</SLabel>
+    <h1 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.5rem",color:"#EAEAF0",letterSpacing:".05em",marginBottom:"1.5rem"}}>PASSWORD</h1>
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>🔐 CHANGE PASSWORD</SLabel>
+      <div style={{marginBottom:".75rem"}}>
+        <label style={lbl}>নতুন Password</label>
+        <div style={{position:"relative"}}>
+          <input type={show?"text":"password"} style={{...inp,paddingRight:"3rem"}} value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="কমপক্ষে ৬ character"/>
+          <button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:".75rem",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.sub,fontSize:"1rem",padding:0}}>{show?"🙈":"👁️"}</button>
+        </div>
+      </div>
+      <button onClick={save} style={{background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".72rem",padding:".65rem 1.5rem",border:"none",cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>🔒 UPDATE PASSWORD</button>
+    </div>
+    <div style={CARD}>
+      <SLabel style={{marginBottom:"1rem"}}>⏏ LOGOUT</SLabel>
+      <p style={{fontSize:".875rem",color:C.sub,marginBottom:"1rem",lineHeight:1.6}}>Logout করলে পরের বার আবার password দিতে হবে।</p>
+      <button onClick={()=>{LS.set("plexo_admin_session",false);window.location.reload();}} style={{background:"transparent",color:C.warm,fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".72rem",padding:".65rem 1.5rem",border:`1px solid ${C.warm}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>⏏ LOGOUT</button>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════
+   ADMIN MAIN LAYOUT
+═══════════════════════════════════════════════ */
+function AdminDashboard({products,onSaveProducts,settings,onSaveSettings,onBack}){
+  const[tab,setTab]=useState("overview");
+  const[toast,setToast]=useState("");
+  const showToast=m=>{setToast(m);setTimeout(()=>setToast(""),2800);};
+
+  const NAV=[
+    {id:"overview",  icon:"📊", label:"Overview"},
+    {id:"products",  icon:"📦", label:"Products"},
+    {id:"categories",icon:"📂", label:"Categories"},
+    {id:"orders",    icon:"🛍️", label:"Orders"},
+    {id:"store",     icon:"🎨", label:"Customize"},
+    {id:"delivery",  icon:"🚚", label:"Delivery"},
+    {id:"social",    icon:"📲", label:"Social"},
+    {id:"security",  icon:"🔐", label:"Security"},
+  ];
+
+  return<div style={{display:"flex",minHeight:"100vh",background:C.bg}}>
+    {/* Sidebar */}
+    <div style={{width:210,background:"#0A0A0C",borderRight:`1px solid ${C.bd}`,display:"flex",flexDirection:"column",flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
+      <div style={{padding:"1rem 1rem .75rem",borderBottom:`1px solid ${C.bd}`}}>
+        <Logo settings={settings}/>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".45rem",letterSpacing:".2em",color:C.mt,marginTop:".35rem"}}>ADMIN PANEL</p>
+      </div>
+      <nav style={{padding:".5rem",flex:1}}>
+        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",gap:".65rem",width:"100%",fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".08em",padding:".65rem 1rem",background:tab===n.id?"rgba(200,255,0,.1)":"transparent",color:tab===n.id?C.ac:C.sub,border:"none",cursor:"pointer",textAlign:"left",borderRadius:"3px",borderLeft:`2px solid ${tab===n.id?C.ac:"transparent"}`,transition:"all .18s",marginBottom:".2rem"}}>
+          <span style={{fontSize:".9rem"}}>{n.icon}</span>{n.label}
+        </button>)}
+      </nav>
+      <div style={{padding:".5rem .5rem 1rem",borderTop:`1px solid ${C.bd}`}}>
+        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:".65rem",width:"100%",fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".08em",padding:".65rem 1rem",background:"transparent",color:C.ac,border:"none",cursor:"pointer",textAlign:"left",borderRadius:"3px"}}>← BACK TO STORE</button>
+      </div>
+    </div>
+
+    {/* Main */}
+    <div style={{flex:1,padding:"2rem",overflowY:"auto",maxWidth:"calc(100% - 210px)"}}>
+      {tab==="overview"   &&<OverviewTab products={products} onGoProducts={()=>setTab("products")} onGoOrders={()=>setTab("orders")}/>}
+      {tab==="products"   &&<ProductsTab products={products} onSave={onSaveProducts}/>}
+      {tab==="categories" &&<CategoriesTab showToast={showToast}/>}
+      {tab==="orders"     &&<OrdersTab showToast={showToast}/>}
+      {tab==="store"      &&<StoreTab settings={settings} onSave={onSaveSettings} showToast={showToast}/>}
+      {tab==="delivery"   &&<DeliveryTab settings={settings} onSave={onSaveSettings} showToast={showToast}/>}
+      {tab==="social"     &&<SocialTab settings={settings} onSave={onSaveSettings} showToast={showToast}/>}
+      {tab==="security"   &&<SecurityTab showToast={showToast}/>}
+    </div>
+    <Toast msg={toast}/>
+  </div>;
+}
+
+/* Admin wrapper with login gate */
+function Admin({products,onSaveProducts,settings,onSaveSettings,onBack}){
+  const[authed,setAuthed]=useState(()=>LS.get("plexo_admin_session",false)===true);
+  if(!authed)return<AdminLogin onSuccess={()=>setAuthed(true)} onBack={onBack}/>;
+  return<AdminDashboard products={products} onSaveProducts={onSaveProducts} settings={settings} onSaveSettings={onSaveSettings} onBack={onBack}/>;
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN APP (Storefront)
+═══════════════════════════════════════════════ */
+function App(){
+  const[products,setProducts]=useState(()=>LS.get("plexo_products",DEF_PRODUCTS));
+  const[settings,setSettings]=useState(()=>getSettings());
+  const[cart,setCart]=useState([]);
+  const[drawerOpen,setDrawerOpen]=useState(false);
+  const[drawerTab,setDrawerTab]=useState("cart");
+  const[orderOpen,setOrderOpen]=useState(false);
+  const[detail,setDetail]=useState(null);
+  const[admin,setAdmin]=useState(false);
+  const[toast,setToast]=useState("");
+  const[confirmed,setConfirmed]=useState(null);
+  const[globalChart,setGlobalChart]=useState(false);
+  // ── NEW: category filter & theme ──
+  const[activeCat,setActiveCat]=useState(null); // null = show all
+  const[darkMode,setDarkMode]=useState(()=>LS.get("plexo_theme","dark")==="dark");
+
+  // theme colours (dynamic)
+  const TH={
+    bg:    darkMode?"#080809":"#F5F5F0",
+    surface:darkMode?"#101014":"#FFFFFF",
+    border: darkMode?"#1C1C22":"#E0E0D8",
+    text:   darkMode?"#EAEAF0":"#111111",
+    sub:    darkMode?"#80808A":"#555550",
+    muted:  darkMode?"#38383F":"#AAAAAA",
+  };
+
+  const toggleTheme=()=>{
+    const next=darkMode?"light":"dark";
+    setDarkMode(!darkMode);
+    LS.set("plexo_theme",next);
+  };
+
+  const saveProds=arr=>{setProducts(arr);LS.set("plexo_products",arr);};
+  const saveSettings=s=>{setSettings({...settings,...s});LS.set("plexo_settings",{...settings,...s});};
+  const showToast=m=>{setToast(m);setTimeout(()=>setToast(""),2800);};
+
+  const addToCart=(product,size,qty)=>{
+    const cid=product.id+"_"+size;
+    const name=`${product.name} (${size})`;
+    setCart(c=>{const ex=c.find(i=>i.cid===cid);if(ex)return c.map(i=>i.cid===cid?{...i,qty:i.qty+qty}:i);return[...c,{cid,name,price:product.price,qty}];});
+    showToast("✅ ADDED TO CART!");
+  };
+  const addDirect=product=>{
+    const cid=product.id+"_M";const name=`${product.name} (M)`;
+    setCart(c=>{const ex=c.find(i=>i.cid===cid);if(ex)return c.map(i=>i.cid===cid?{...i,qty:i.qty+1}:i);return[...c,{cid,name,price:product.price,qty:1}];});
+    showToast("✅ ADDED!");setDrawerTab("cart");setDrawerOpen(true);
+  };
+  const cartQty=cart.reduce((s,i)=>s+i.qty,0);
+  const ac=settings.accentColor||C.ac;
+
+  // filtered products
+  const visibleProducts=activeCat?products.filter(p=>p.category===activeCat):products;
+
+  if(admin)return<Admin products={products} onSaveProducts={saveProds} settings={settings} onSaveSettings={saveSettings} onBack={()=>setAdmin(false)}/>;
+
+  return<div style={{background:TH.bg,color:TH.text,fontFamily:"'DM Sans',sans-serif",minHeight:"100vh",transition:"background .3s,color .3s"}}>
+    <style>{`@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes fadeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes catIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+    {/* Ticker */}
+    <div style={{background:ac,overflow:"hidden",whiteSpace:"nowrap",padding:".5rem 0"}}>
+      <div style={{display:"inline-flex",animation:"ticker 28s linear infinite"}}>
+        {[1,2].map(n=><span key={n} style={{fontFamily:"'Space Mono',monospace",fontSize:".68rem",fontWeight:700,letterSpacing:".15em",color:"#080809",margin:"0 2rem"}}>{settings.tickerText}</span>)}
+      </div>
+    </div>
+
+    {/* Navbar */}
+    <nav style={{position:"sticky",top:0,zIndex:50,backdropFilter:"blur(20px)",background:darkMode?"rgba(8,8,9,.88)":"rgba(245,245,240,.92)",borderBottom:`1px solid ${TH.border}`}}>
+      <div style={{maxWidth:"80rem",margin:"0 auto",padding:"0 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:64}}>
+        <Logo settings={settings}/>
+        <div style={{display:"flex",alignItems:"center",gap:"1.25rem"}}>
+          <a href="#products" style={{color:TH.sub,fontSize:".875rem",textDecoration:"none",fontWeight:500}}>NEW DROPS</a>
+          <a href="#categories" style={{color:TH.sub,fontSize:".875rem",textDecoration:"none",fontWeight:500}}>CATEGORIES</a>
+          <button onClick={()=>setGlobalChart(true)} style={{display:"flex",alignItems:"center",gap:".35rem",background:"transparent",border:`1px solid ${TH.border}`,color:ac,fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".1em",padding:".38rem .8rem",borderRadius:"2px",cursor:"pointer"}}>📏 SIZE</button>
+          {/* 🌙 THEME TOGGLE */}
+          <button onClick={toggleTheme} title={darkMode?"Light mode":"Dark mode"} style={{width:34,height:34,borderRadius:"50%",border:`1px solid ${TH.border}`,background:"transparent",cursor:"pointer",fontSize:"1rem",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",flexShrink:0}}>
+            {darkMode?"☀️":"🌙"}
+          </button>
+        </div>
+        <div style={{display:"flex",gap:".6rem"}}>
+          <button onClick={()=>setAdmin(true)} style={{background:"transparent",color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".55rem",padding:".45rem .7rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".08em"}}>⚙️</button>
+          <button onClick={()=>{setDrawerTab("cart");setDrawerOpen(true);}} style={{background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".62rem",fontWeight:700,padding:".5rem .9rem",border:"none",cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>🛍 ({cartQty})</button>
+          <button onClick={()=>{setDrawerTab("orders");setDrawerOpen(true);}} style={{background:"transparent",color:ac,fontFamily:"'Space Mono',monospace",fontSize:".55rem",fontWeight:700,padding:".45rem .7rem",border:`1px solid ${ac}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".08em"}}>📦</button>
+        </div>
+      </div>
+    </nav>
+
+    {globalChart&&<SizeChartModal category="Oversized Tee" onClose={()=>setGlobalChart(false)}/>}
+
+    {/* Hero */}
+    <section style={{minHeight:"92vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:"0 1.5rem",background:`radial-gradient(ellipse 55% 45% at 75% 55%,rgba(${hexToRgb(ac)},.07) 0%,transparent 70%),#080809`,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.012) 1px,transparent 1px)",backgroundSize:"56px 56px",pointerEvents:"none"}}/>
+      <div style={{maxWidth:"80rem",margin:"0 auto",width:"100%",position:"relative"}}>
+        <div style={{display:"flex",alignItems:"center",gap:".75rem",marginBottom:"1.5rem"}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:ac,display:"inline-block"}}/>
+          <SLabel>SS '25 COLLECTION — DHAKA ORIGIN</SLabel>
+        </div>
+        <h1 style={{fontFamily:"'Bebas Neue',sans-serif",lineHeight:.95,fontSize:"clamp(3.5rem,13vw,10rem)",marginBottom:"2rem"}}>
+          <span style={{display:"block",color:"#EAEAF0"}}>{settings.heroTitle}</span>
+          <span style={{display:"block",WebkitTextStroke:`1.5px ${ac}`,color:"transparent"}}>{settings.heroTitleOutline}</span>
+        </h1>
+        <p style={{color:C.sub,fontSize:"1.05rem",maxWidth:"22rem",lineHeight:1.7,marginBottom:"2rem"}}>{settings.heroSub}</p>
+        <div style={{display:"flex",gap:".75rem",flexWrap:"wrap"}}>
+          <a href="#products" style={{display:"inline-block",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:"1rem 2rem",textDecoration:"none",letterSpacing:".15em",borderRadius:"2px"}}>{settings.heroCTA} ↓</a>
+          <button onClick={()=>{setDrawerTab("orders");setDrawerOpen(true);}} style={{display:"inline-block",border:`1px solid ${ac}`,color:ac,fontFamily:"'Space Mono',monospace",fontSize:".75rem",padding:"1rem 2rem",letterSpacing:".15em",borderRadius:"2px",background:"transparent",cursor:"pointer"}}>MY ORDERS →</button>
+        </div>
+      </div>
+    </section>
+
+    {/* ── CATEGORY FILTERED VIEW ── */}
+    {activeCat&&<div style={{background:TH.bg,minHeight:"100vh",animation:"catIn .35s ease"}}>
+      {/* Header */}
+      <div style={{background:darkMode?"#0D0D10":TH.surface,borderBottom:`1px solid ${TH.border}`,padding:"1.5rem",position:"sticky",top:64,zIndex:40}}>
+        <div style={{maxWidth:"80rem",margin:"0 auto"}}>
+          <button onClick={()=>setActiveCat(null)} style={{background:"transparent",border:"none",cursor:"pointer",color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".62rem",letterSpacing:".12em",marginBottom:".75rem",padding:0,display:"flex",alignItems:"center",gap:".4rem"}}>← ALL CATEGORIES</button>
+          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:"1rem"}}>
+            <div>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".18em",color:ac,marginBottom:".4rem"}}>CATEGORY</p>
+              <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(2rem,7vw,4rem)",color:TH.text,lineHeight:1}}>{activeCat.toUpperCase()}</h2>
+            </div>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:".65rem",color:TH.sub,letterSpacing:".1em"}}>{visibleProducts.length} PRODUCTS</p>
+          </div>
+          {/* Filter chips — other categories */}
+          <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:"1rem"}}>
+            {getCats().map(cat=>(
+              <button key={cat} onClick={()=>setActiveCat(cat)} style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".08em",padding:".35rem .8rem",borderRadius:"2px",border:`1px solid ${activeCat===cat?ac:TH.border}`,background:activeCat===cat?ac:"transparent",color:activeCat===cat?"#080809":TH.sub,cursor:"pointer",transition:"all .18s"}}>
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Products grid */}
+      <div style={{maxWidth:"80rem",margin:"0 auto",padding:"2.5rem 1.5rem"}}>
+        {visibleProducts.length===0
+          ?<div style={{textAlign:"center",padding:"5rem 0"}}>
+            <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"3rem",color:TH.muted}}>NO PRODUCTS</p>
+            <p style={{color:TH.sub,fontSize:".875rem",marginTop:".5rem"}}>এই category-তে এখনো product add হয়নি।</p>
+            <button onClick={()=>setActiveCat(null)} style={{marginTop:"1.5rem",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".7rem",padding:".75rem 1.5rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>← সব products দেখো</button>
+          </div>
+          :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"1rem"}}>
+            {visibleProducts.map((p,i)=>(
+              <div key={p.id} style={{animation:`catIn .4s ease ${i*.05}s both`}}>
+                <ProductCard product={p} settings={settings} onOpen={setDetail} onQuickAdd={addDirect}/>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+    </div>}
+
+    {/* ── MAIN STOREFRONT (hidden when category is active) ── */}
+    {!activeCat&&<>
+
+    {/* Products */}
+    <section id="products" style={{padding:"5rem 1.5rem",maxWidth:"80rem",margin:"0 auto"}}>
+      <SLabel style={{marginBottom:".5rem"}}>— LATEST COLLECTION</SLabel>
+      <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(2.5rem,8vw,5rem)",color:TH.text,lineHeight:1,marginBottom:"1.5rem"}}>NEW DROPS</h2>
+      <div style={{height:1,background:`linear-gradient(90deg,${ac},transparent)`,marginBottom:"2rem"}}/>
+      {products.length===0
+        ?<div style={{textAlign:"center",padding:"4rem 0"}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"3rem",color:TH.muted}}>NO PRODUCTS YET</p><button onClick={()=>setAdmin(true)} style={{marginTop:"1rem",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".7rem",padding:".75rem 1.5rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>OPEN ADMIN →</button></div>
+        :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"1rem"}}>
+          {products.map(p=><ProductCard key={p.id} product={p} settings={settings} onOpen={setDetail} onQuickAdd={addDirect}/>)}
+        </div>
+      }
+    </section>
+
+    {/* Marquee */}
+    <div style={{borderTop:`1px solid ${TH.border}`,borderBottom:`1px solid ${TH.border}`,padding:"1.2rem 0",overflow:"hidden"}}>
+      <div style={{display:"inline-flex",animation:"ticker 28s linear infinite"}}>
+        {[1,2].map(n=><span key={n} style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(3rem,8vw,6rem)",color:TH.border,letterSpacing:".1em",whiteSpace:"nowrap",paddingRight:"2rem"}}>{settings.brandName} · STREETWEAR · OVERSIZED · AUTHENTIC · BANGLADESHI · </span>)}
+      </div>
+    </div>
+
+    {/* Categories */}
+    <section id="categories" style={{padding:"5rem 1.5rem",maxWidth:"80rem",margin:"0 auto"}}>
+      <SLabel style={{marginBottom:".5rem"}}>— SHOP BY TYPE</SLabel>
+      <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(2.5rem,8vw,5rem)",color:TH.text,lineHeight:1,marginBottom:"2rem"}}>CATEGORIES</h2>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"1rem"}}>
+        {getCats().slice(0,8).map((cat,i)=>{
+          const catProds=products.filter(p=>p.category===cat).length;
+          return(
+            <div key={cat}
+              onClick={()=>{setActiveCat(cat);window.scrollTo({top:0,behavior:"smooth"});}}
+              style={{position:"relative",overflow:"hidden",borderRadius:"4px",border:`1px solid ${TH.border}`,aspectRatio:"1",cursor:"pointer",transition:"border-color .25s,transform .25s"}}
+              onMouseOver={e=>{e.currentTarget.style.borderColor=ac;e.currentTarget.style.transform="translateY(-4px)";}}
+              onMouseOut={e=>{e.currentTarget.style.borderColor=TH.border;e.currentTarget.style.transform="translateY(0)";}}
+            >
+              {/* Background gradient */}
+              <div style={{position:"absolute",inset:0,background:grad(cat),transition:"transform .5s"}}
+                onMouseOver={e=>e.currentTarget.style.transform="scale(1.05)"}
+                onMouseOut={e=>e.currentTarget.style.transform="scale(1)"}
+              />
+              {/* Big ghost text */}
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"4.5rem",color:"rgba(200,255,0,0.07)",userSelect:"none"}}>{cat.split(" ")[0]}</span>
+              </div>
+              {/* Label */}
+              <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"1.25rem 1rem 1rem",background:"linear-gradient(0deg,rgba(0,0,0,.9),transparent)"}}>
+                <p style={{fontFamily:"'Space Mono',monospace",fontSize:".52rem",letterSpacing:".15em",color:ac,marginBottom:".25rem"}}>{catProds} PRODUCTS</p>
+                <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.35rem",color:"#EAEAF0",lineHeight:1}}>{cat}</p>
+                <p style={{fontFamily:"'Space Mono',monospace",fontSize:".5rem",color:"rgba(255,255,255,.45)",marginTop:".25rem",letterSpacing:".1em"}}>TAP TO EXPLORE →</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+
+    {/* Trust band */}
+    <div style={{borderTop:`1px solid ${TH.border}`,borderBottom:`1px solid ${TH.border}`,padding:"3rem 1.5rem"}}>
+      <div style={{maxWidth:"80rem",margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"2rem"}}>
+        {[["⚡","FAST DELIVERY","48hrs inside Dhaka"],["💸","CASH ON DELIVERY","Pay when it arrives"],["🔁","EASY RETURNS","7-day hassle-free"],["🇧🇩","LOCAL BRAND","Made for Gen-Z BD"]].map(([icon,label,desc])=>(
+          <div key={label}>
+            <span style={{fontSize:"1.5rem",display:"block",marginBottom:".5rem"}}>{icon}</span>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".15em",color:TH.sub,marginBottom:".25rem"}}>{label}</p>
+            <p style={{fontSize:".875rem",fontWeight:500,color:TH.text}}>{desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Footer */}
+    <footer style={{padding:"4rem 1.5rem",maxWidth:"80rem",margin:"0 auto",borderTop:`1px solid ${TH.border}`,marginTop:"2rem"}}>
+      <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"2rem",marginBottom:"1.5rem"}}>
+        <div>
+          <Logo settings={settings}/>
+          <div style={{display:"flex",gap:"1rem",marginTop:"1rem"}}>
+            {settings.instagram&&<a href={`https://instagram.com/${settings.instagram.replace("@","")}`} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",letterSpacing:".12em",textDecoration:"none"}}>IG</a>}
+            {settings.tiktok&&<a href={`https://tiktok.com/${settings.tiktok.replace("@","")}`} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",letterSpacing:".12em",textDecoration:"none"}}>TT</a>}
+            {settings.facebook&&<a href={settings.facebook} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",letterSpacing:".12em",textDecoration:"none"}}>FB</a>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:".6rem",alignSelf:"flex-start"}}>
+          <button onClick={toggleTheme} style={{background:"transparent",color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".5rem .85rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>
+            {darkMode?"☀️ LIGHT":"🌙 DARK"}
+          </button>
+          <button onClick={()=>setAdmin(true)} style={{background:"transparent",color:TH.muted,fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".5rem .85rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>⚙️ ADMIN</button>
+        </div>
+      </div>
+      <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:TH.muted,textAlign:"center"}}>© 2025 {settings.brandName.toUpperCase()}. {settings.footerText}</p>
+    </footer>
+
+    </>}{/* end !activeCat */}
+
+    {/* Modals */}
+    <ProductModal product={detail} settings={settings} onClose={()=>setDetail(null)} onAdd={addToCart}/>
+    <CartDrawer cart={cart} open={drawerOpen} tab={drawerTab} onTab={setDrawerTab} onClose={()=>setDrawerOpen(false)} onRemove={id=>setCart(c=>c.filter(i=>i.cid!==id))} onClear={()=>setCart([])} onCheckout={()=>{setDrawerOpen(false);setOrderOpen(true);}} settings={settings}/>
+    <OrderDrawer cart={cart} open={orderOpen} onClose={()=>setOrderOpen(false)} onSuccess={order=>{setCart([]);setConfirmed(order);}} settings={settings}/>
+    {confirmed&&<OrderConfirm order={confirmed} settings={settings} onClose={()=>setConfirmed(null)} onViewOrders={()=>{setConfirmed(null);setDrawerTab("orders");setDrawerOpen(true);}}/>}
+    <Toast msg={toast}/>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
