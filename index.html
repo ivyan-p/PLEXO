@@ -460,7 +460,30 @@ function ProductForm({initial,onSave,onClose}){
 ═══════════════════════════════════════════════ */
 function AdminLogin({onSuccess,onBack}){
   const[pw,setPw]=useState("");const[show,setShow]=useState(false);const[err,setErr]=useState(false);
-  const check=()=>{if(pw===LS.get("plexo_admin_pw","plexo2025")){LS.set("plexo_admin_session",true);onSuccess();}else{setErr(true);setPw("");setTimeout(()=>setErr(false),2000);}};
+  const check=()=>{
+    // Rate limiting — ৩ বারের বেশি ভুল দিলে ৩০ সেকেন্ড lock
+    const attempts=LS.get("plexo_login_attempts",0);
+    const lockUntil=LS.get("plexo_login_lock",0);
+    if(Date.now()<lockUntil){
+      const secs=Math.ceil((lockUntil-Date.now())/1000);
+      setErr(`⏳ ${secs} সেকেন্ড অপেক্ষা করো`);return;
+    }
+    const stored=LS.get("plexo_admin_pw","");
+    // প্রথমবার — কোনো password set নেই, যেকোনো ৬+ char accept করো
+    const isValid = stored ? pw===stored : pw.length>=6;
+    if(isValid){
+      if(!stored) LS.set("plexo_admin_pw",pw); // প্রথম login-এ password set করো
+      LS.set("plexo_admin_session",Date.now()); // timestamp দিয়ে session
+      LS.set("plexo_login_attempts",0);
+      onSuccess();
+    } else {
+      const newAttempts=attempts+1;
+      LS.set("plexo_login_attempts",newAttempts);
+      if(newAttempts>=3) LS.set("plexo_login_lock",Date.now()+30000);
+      setErr(`❌ Wrong password! (${newAttempts}/3)`);
+      setPw("");
+    }
+  };
   return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
     <div style={{background:"#0D0D10",border:`1px solid ${C.bd}`,borderRadius:"6px",width:"100%",maxWidth:360,padding:"2rem"}}>
       <div style={{marginBottom:"1.75rem"}}><Logo/></div>
@@ -471,11 +494,13 @@ function AdminLogin({onSuccess,onBack}){
           <input type={show?"text":"password"} value={pw} autoFocus onChange={e=>{setPw(e.target.value);setErr(false);}} onKeyDown={e=>e.key==="Enter"&&check()} placeholder="••••••••" style={{...INP,letterSpacing:show?".05em":".2em",border:`1px solid ${err?C.warm:C.bd}`}}/>
           <button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:".75rem",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.sub,fontSize:"1rem",padding:0}}>{show?"🙈":"👁️"}</button>
         </div>
-        {err&&<p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.warm,marginTop:".5rem"}}>❌ Wrong password!</p>}
+        {err&&<p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:C.warm,marginTop:".5rem"}}>{err}</p>}
       </div>
       <button onClick={check} style={{width:"100%",background:C.ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:".85rem",border:"none",cursor:"pointer",letterSpacing:".15em",borderRadius:"2px"}}>LOGIN →</button>
       <button onClick={onBack} style={{width:"100%",marginTop:".75rem",background:"none",border:"none",cursor:"pointer",color:C.sub,fontFamily:"'Space Mono',monospace",fontSize:".6rem",letterSpacing:".12em",padding:".5rem"}}>← BACK TO STORE</button>
-      <p style={{fontFamily:"'Space Mono',monospace",fontSize:".5rem",color:C.mt,textAlign:"center",marginTop:".75rem"}}>Default password: plexo2025</p>
+      <p style={{fontFamily:"'Space Mono',monospace",fontSize:".5rem",color:C.mt,textAlign:"center",marginTop:".75rem"}}>
+        {LS.get("plexo_admin_pw","")?"":"প্রথমবার: যেকোনো password দাও — সেটাই হয়ে যাবে!"}
+      </p>
     </div>
   </div>;
 }
@@ -807,7 +832,7 @@ function SecurityTab({showToast}){
     <div style={CARD}>
       <SLabel style={{marginBottom:"1rem"}}>⏏ LOGOUT</SLabel>
       <p style={{fontSize:".875rem",color:C.sub,marginBottom:"1rem",lineHeight:1.6}}>Logout করলে পরের বার আবার password দিতে হবে।</p>
-      <button onClick={()=>{LS.set("plexo_admin_session",false);window.location.reload();}} style={{background:"transparent",color:C.warm,fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".72rem",padding:".65rem 1.5rem",border:`1px solid ${C.warm}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>⏏ LOGOUT</button>
+      <button onClick={()=>{LS.set("plexo_admin_session",0);LS.set("plexo_login_attempts",0);window.location.reload();}} style={{background:"transparent",color:C.warm,fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".72rem",padding:".65rem 1.5rem",border:`1px solid ${C.warm}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>⏏ LOGOUT</button>
     </div>
   </div>;
 }
@@ -863,9 +888,12 @@ function AdminDashboard({products,onSaveProducts,settings,onSaveSettings,onBack}
   </div>;
 }
 
-/* Admin wrapper with login gate */
 function Admin({products,onSaveProducts,settings,onSaveSettings,onBack}){
-  const[authed,setAuthed]=useState(()=>LS.get("plexo_admin_session",false)===true);
+  const[authed,setAuthed]=useState(()=>{
+    const session=LS.get("plexo_admin_session",0);
+    // Session ২৪ ঘন্টা valid
+    return session && (Date.now()-session)<24*60*60*1000;
+  });
   if(!authed)return<AdminLogin onSuccess={()=>setAuthed(true)} onBack={onBack}/>;
   return<AdminDashboard products={products} onSaveProducts={onSaveProducts} settings={settings} onSaveSettings={onSaveSettings} onBack={onBack}/>;
 }
@@ -886,8 +914,25 @@ function App(){
   const[confirmed,setConfirmed]=useState(null);
   const[globalChart,setGlobalChart]=useState(false);
   // ── NEW: category filter & theme ──
-  const[activeCat,setActiveCat]=useState(null); // null = show all
+  const[activeCat,setActiveCat]=useState(null);
   const[darkMode,setDarkMode]=useState(()=>LS.get("plexo_theme","dark")==="dark");
+  const[mobMenu,setMobMenu]=useState(false);
+  // Secret admin access — Logo-তে ৫ বার tap করলে admin panel খুলবে
+  const[tapCount,setTapCount]=useState(0);
+  const[tapTimer,setTapTimer]=useState(null);
+
+  const handleLogoTap=()=>{
+    const newCount=tapCount+1;
+    setTapCount(newCount);
+    if(tapTimer) clearTimeout(tapTimer);
+    if(newCount>=5){
+      setTapCount(0);
+      setAdmin(true);
+    } else {
+      const t=setTimeout(()=>setTapCount(0),2000);
+      setTapTimer(t);
+    }
+  };
 
   // theme colours (dynamic)
   const TH={
@@ -940,24 +985,81 @@ function App(){
 
     {/* Navbar */}
     <nav style={{position:"sticky",top:0,zIndex:50,backdropFilter:"blur(20px)",background:darkMode?"rgba(8,8,9,.88)":"rgba(245,245,240,.92)",borderBottom:`1px solid ${TH.border}`}}>
-      <div style={{maxWidth:"80rem",margin:"0 auto",padding:"0 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:64}}>
-        <Logo settings={settings}/>
-        <div style={{display:"flex",alignItems:"center",gap:"1.25rem"}}>
-          <a href="#products" style={{color:TH.sub,fontSize:".875rem",textDecoration:"none",fontWeight:500}}>NEW DROPS</a>
-          <a href="#categories" style={{color:TH.sub,fontSize:".875rem",textDecoration:"none",fontWeight:500}}>CATEGORIES</a>
-          <button onClick={()=>setGlobalChart(true)} style={{display:"flex",alignItems:"center",gap:".35rem",background:"transparent",border:`1px solid ${TH.border}`,color:ac,fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".1em",padding:".38rem .8rem",borderRadius:"2px",cursor:"pointer"}}>📏 SIZE</button>
-          {/* 🌙 THEME TOGGLE */}
-          <button onClick={toggleTheme} title={darkMode?"Light mode":"Dark mode"} style={{width:34,height:34,borderRadius:"50%",border:`1px solid ${TH.border}`,background:"transparent",cursor:"pointer",fontSize:"1rem",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",flexShrink:0}}>
+      <div style={{maxWidth:"80rem",margin:"0 auto",padding:"0 1rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:60}}>
+
+        {/* Logo — ৫ বার tap করলে admin panel খুলবে (secret!) */}
+        <div onClick={handleLogoTap} style={{cursor:"default",userSelect:"none"}}>
+          <Logo settings={settings}/>
+        </div>
+
+        {/* Desktop nav links — mobile-এ লুকানো */}
+        <div style={{display:"flex",alignItems:"center",gap:"1rem"}} className="desktop-nav">
+          <style>{`
+            @media(max-width:640px){
+              .desktop-nav{display:none!important}
+              .mobile-only{display:flex!important}
+            }
+            @media(min-width:641px){
+              .mobile-only{display:none!important}
+              .desktop-nav{display:flex!important}
+            }
+            /* Mobile drawer */
+            .mob-menu{position:fixed;top:0;left:-100%;bottom:0;width:75vw;max-width:280px;background:#0D0D10;border-right:1px solid #1C1C22;z-index:9000;transition:left .35s cubic-bezier(.22,1,.36,1);padding:1.5rem;display:flex;flex-direction:column;gap:0}
+            .mob-menu.open{left:0}
+            .mob-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:8999;display:none}
+            .mob-overlay.open{display:block}
+            /* Mobile product grid — 2 columns */
+            @media(max-width:480px){
+              .prod-grid{grid-template-columns:repeat(2,1fr)!important;gap:.6rem!important}
+              .cat-grid{grid-template-columns:repeat(2,1fr)!important;gap:.6rem!important}
+              .trust-grid{grid-template-columns:repeat(2,1fr)!important}
+              .hero-title{font-size:clamp(2.8rem,16vw,5rem)!important}
+              .hero-sub{font-size:.9rem!important}
+              .section-pad{padding:3rem 1rem!important}
+            }
+            @media(max-width:360px){
+              .prod-grid{grid-template-columns:repeat(2,1fr)!important;gap:.4rem!important}
+            }
+          `}</style>
+          <a href="#products" style={{color:TH.sub,fontSize:".8rem",textDecoration:"none",fontWeight:500}}>NEW DROPS</a>
+          <a href="#categories" style={{color:TH.sub,fontSize:".8rem",textDecoration:"none",fontWeight:500}}>CATEGORIES</a>
+          <button onClick={()=>setGlobalChart(true)} style={{display:"flex",alignItems:"center",gap:".3rem",background:"transparent",border:`1px solid ${TH.border}`,color:ac,fontFamily:"'Space Mono',monospace",fontSize:".55rem",letterSpacing:".08em",padding:".35rem .7rem",borderRadius:"2px",cursor:"pointer"}}>📏 SIZE</button>
+          <button onClick={toggleTheme} style={{width:32,height:32,borderRadius:"50%",border:`1px solid ${TH.border}`,background:"transparent",cursor:"pointer",fontSize:".9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>
             {darkMode?"☀️":"🌙"}
           </button>
         </div>
-        <div style={{display:"flex",gap:".6rem"}}>
-          <button onClick={()=>setAdmin(true)} style={{background:"transparent",color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".55rem",padding:".45rem .7rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".08em"}}>⚙️</button>
-          <button onClick={()=>{setDrawerTab("cart");setDrawerOpen(true);}} style={{background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".62rem",fontWeight:700,padding:".5rem .9rem",border:"none",cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>🛍 ({cartQty})</button>
-          <button onClick={()=>{setDrawerTab("orders");setDrawerOpen(true);}} style={{background:"transparent",color:ac,fontFamily:"'Space Mono',monospace",fontSize:".55rem",fontWeight:700,padding:".45rem .7rem",border:`1px solid ${ac}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".08em"}}>📦</button>
+
+        {/* Right buttons */}
+        <div style={{display:"flex",gap:".5rem",alignItems:"center"}}>
+          <button onClick={()=>{setDrawerTab("cart");setDrawerOpen(true);}} style={{background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontSize:".62rem",fontWeight:700,padding:".45rem .85rem",border:"none",cursor:"pointer",borderRadius:"2px",letterSpacing:".08em",display:"flex",alignItems:"center",gap:".3rem"}}>
+            🛍 <span>{cartQty}</span>
+          </button>
+          <button onClick={()=>{setDrawerTab("orders");setDrawerOpen(true);}} style={{background:"transparent",color:ac,fontFamily:"'Space Mono',monospace",fontSize:".55rem",fontWeight:700,padding:".4rem .65rem",border:`1px solid ${ac}`,cursor:"pointer",borderRadius:"2px"}}>📦</button>
+          {/* Mobile hamburger */}
+          <button className="mobile-only" onClick={()=>setMobMenu(true)} style={{background:"transparent",border:`1px solid ${TH.border}`,color:TH.sub,width:34,height:34,borderRadius:"2px",cursor:"pointer",display:"none",alignItems:"center",justifyContent:"center",fontSize:"1.1rem"}}>☰</button>
+          <button onClick={toggleTheme} className="mobile-only" style={{width:32,height:32,borderRadius:"50%",border:`1px solid ${TH.border}`,background:"transparent",cursor:"pointer",fontSize:".9rem",display:"none",alignItems:"center",justifyContent:"center"}}>
+            {darkMode?"☀️":"🌙"}
+          </button>
         </div>
       </div>
     </nav>
+
+    {/* Mobile Nav Drawer */}
+    <div className={`mob-overlay${mobMenu?" open":""}`} onClick={()=>setMobMenu(false)}/>
+    <div className={`mob-menu${mobMenu?" open":""}`}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"2rem"}}>
+        <Logo settings={settings}/>
+        <button onClick={()=>setMobMenu(false)} style={{background:"none",border:"none",color:"#80808A",fontSize:"1.3rem",cursor:"pointer"}}>✕</button>
+      </div>
+      {[["#products","NEW DROPS"],["#categories","CATEGORIES"]].map(([href,label])=>(
+        <a key={label} href={href} onClick={()=>setMobMenu(false)} style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.2rem",color:"#EAEAF0",textDecoration:"none",display:"block",marginBottom:".75rem",letterSpacing:".05em"}}>{label}</a>
+      ))}
+      <button onClick={()=>{setGlobalChart(true);setMobMenu(false);}} style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"2.2rem",color:"#EAEAF0",background:"none",border:"none",cursor:"pointer",textAlign:"left",padding:0,letterSpacing:".05em",marginBottom:".75rem"}}>📏 SIZE CHART</button>
+      <div style={{marginTop:"auto",paddingTop:"2rem",borderTop:"1px solid #1C1C22"}}>
+        {settings.instagram&&<a href={`https://instagram.com/${settings.instagram.replace("@","")}`} target="_blank" style={{display:"block",color:"#80808A",fontFamily:"'Space Mono',monospace",fontSize:".7rem",letterSpacing:".12em",textDecoration:"none",marginBottom:".5rem"}}>📸 INSTAGRAM</a>}
+        {settings.waNumber&&<a href={`https://wa.me/${settings.waNumber}`} target="_blank" style={{display:"block",color:"#80808A",fontFamily:"'Space Mono',monospace",fontSize:".7rem",letterSpacing:".12em",textDecoration:"none"}}>💬 WHATSAPP</a>}
+      </div>
+    </div>
 
     {globalChart&&<SizeChartModal category="Oversized Tee" onClose={()=>setGlobalChart(false)}/>}
 
@@ -969,11 +1071,11 @@ function App(){
           <span style={{width:8,height:8,borderRadius:"50%",background:ac,display:"inline-block"}}/>
           <SLabel>SS '25 COLLECTION — DHAKA ORIGIN</SLabel>
         </div>
-        <h1 style={{fontFamily:"'Bebas Neue',sans-serif",lineHeight:.95,fontSize:"clamp(3.5rem,13vw,10rem)",marginBottom:"2rem"}}>
+        <h1 className="hero-title" style={{fontFamily:"'Bebas Neue',sans-serif",lineHeight:.95,fontSize:"clamp(3rem,13vw,10rem)",marginBottom:"1.5rem"}}>
           <span style={{display:"block",color:"#EAEAF0"}}>{settings.heroTitle}</span>
           <span style={{display:"block",WebkitTextStroke:`1.5px ${ac}`,color:"transparent"}}>{settings.heroTitleOutline}</span>
         </h1>
-        <p style={{color:C.sub,fontSize:"1.05rem",maxWidth:"22rem",lineHeight:1.7,marginBottom:"2rem"}}>{settings.heroSub}</p>
+        <p className="hero-sub" style={{color:C.sub,fontSize:"1rem",maxWidth:"22rem",lineHeight:1.7,marginBottom:"1.5rem"}}>{settings.heroSub}</p>
         <div style={{display:"flex",gap:".75rem",flexWrap:"wrap"}}>
           <a href="#products" style={{display:"inline-block",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".75rem",padding:"1rem 2rem",textDecoration:"none",letterSpacing:".15em",borderRadius:"2px"}}>{settings.heroCTA} ↓</a>
           <button onClick={()=>{setDrawerTab("orders");setDrawerOpen(true);}} style={{display:"inline-block",border:`1px solid ${ac}`,color:ac,fontFamily:"'Space Mono',monospace",fontSize:".75rem",padding:"1rem 2rem",letterSpacing:".15em",borderRadius:"2px",background:"transparent",cursor:"pointer"}}>MY ORDERS →</button>
@@ -1013,7 +1115,7 @@ function App(){
             <p style={{color:TH.sub,fontSize:".875rem",marginTop:".5rem"}}>এই category-তে এখনো product add হয়নি।</p>
             <button onClick={()=>setActiveCat(null)} style={{marginTop:"1.5rem",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".7rem",padding:".75rem 1.5rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>← সব products দেখো</button>
           </div>
-          :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"1rem"}}>
+          :<div className="prod-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:"1rem"}}>
             {visibleProducts.map((p,i)=>(
               <div key={p.id} style={{animation:`catIn .4s ease ${i*.05}s both`}}>
                 <ProductCard product={p} settings={settings} onOpen={setDetail} onQuickAdd={addDirect}/>
@@ -1028,13 +1130,13 @@ function App(){
     {!activeCat&&<>
 
     {/* Products */}
-    <section id="products" style={{padding:"5rem 1.5rem",maxWidth:"80rem",margin:"0 auto"}}>
+    <section id="products" className="section-pad" style={{padding:"4rem 1rem",maxWidth:"80rem",margin:"0 auto"}}>
       <SLabel style={{marginBottom:".5rem"}}>— LATEST COLLECTION</SLabel>
       <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(2.5rem,8vw,5rem)",color:TH.text,lineHeight:1,marginBottom:"1.5rem"}}>NEW DROPS</h2>
       <div style={{height:1,background:`linear-gradient(90deg,${ac},transparent)`,marginBottom:"2rem"}}/>
       {products.length===0
         ?<div style={{textAlign:"center",padding:"4rem 0"}}><p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"3rem",color:TH.muted}}>NO PRODUCTS YET</p><button onClick={()=>setAdmin(true)} style={{marginTop:"1rem",background:ac,color:"#080809",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".7rem",padding:".75rem 1.5rem",border:"none",cursor:"pointer",borderRadius:"2px"}}>OPEN ADMIN →</button></div>
-        :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"1rem"}}>
+        :<div className="prod-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:"1rem"}}>
           {products.map(p=><ProductCard key={p.id} product={p} settings={settings} onOpen={setDetail} onQuickAdd={addDirect}/>)}
         </div>
       }
@@ -1048,10 +1150,10 @@ function App(){
     </div>
 
     {/* Categories */}
-    <section id="categories" style={{padding:"5rem 1.5rem",maxWidth:"80rem",margin:"0 auto"}}>
+    <section id="categories" className="section-pad" style={{padding:"4rem 1rem",maxWidth:"80rem",margin:"0 auto"}}>
       <SLabel style={{marginBottom:".5rem"}}>— SHOP BY TYPE</SLabel>
-      <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(2.5rem,8vw,5rem)",color:TH.text,lineHeight:1,marginBottom:"2rem"}}>CATEGORIES</h2>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"1rem"}}>
+      <h2 style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"clamp(2rem,8vw,5rem)",color:TH.text,lineHeight:1,marginBottom:"1.5rem"}}>CATEGORIES</h2>
+      <div className="cat-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:".75rem"}}>
         {getCats().slice(0,8).map((cat,i)=>{
           const catProds=products.filter(p=>p.category===cat).length;
           return(
@@ -1082,9 +1184,8 @@ function App(){
       </div>
     </section>
 
-    {/* Trust band */}
-    <div style={{borderTop:`1px solid ${TH.border}`,borderBottom:`1px solid ${TH.border}`,padding:"3rem 1.5rem"}}>
-      <div style={{maxWidth:"80rem",margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"2rem"}}>
+    <div style={{borderTop:`1px solid ${TH.border}`,borderBottom:`1px solid ${TH.border}`,padding:"2rem 1rem"}}>
+      <div className="trust-grid" style={{maxWidth:"80rem",margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:"1.5rem"}}>
         {[["⚡","FAST DELIVERY","48hrs inside Dhaka"],["💸","CASH ON DELIVERY","Pay when it arrives"],["🔁","EASY RETURNS","7-day hassle-free"],["🇧🇩","LOCAL BRAND","Made for Gen-Z BD"]].map(([icon,label,desc])=>(
           <div key={label}>
             <span style={{fontSize:"1.5rem",display:"block",marginBottom:".5rem"}}>{icon}</span>
@@ -1096,24 +1197,37 @@ function App(){
     </div>
 
     {/* Footer */}
-    <footer style={{padding:"4rem 1.5rem",maxWidth:"80rem",margin:"0 auto",borderTop:`1px solid ${TH.border}`,marginTop:"2rem"}}>
-      <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"2rem",marginBottom:"1.5rem"}}>
+    <footer style={{padding:"3rem 1rem",maxWidth:"80rem",margin:"0 auto",borderTop:`1px solid ${TH.border}`,marginTop:"2rem"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"2rem",marginBottom:"2rem"}}>
         <div>
-          <Logo settings={settings}/>
-          <div style={{display:"flex",gap:"1rem",marginTop:"1rem"}}>
-            {settings.instagram&&<a href={`https://instagram.com/${settings.instagram.replace("@","")}`} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",letterSpacing:".12em",textDecoration:"none"}}>IG</a>}
-            {settings.tiktok&&<a href={`https://tiktok.com/${settings.tiktok.replace("@","")}`} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",letterSpacing:".12em",textDecoration:"none"}}>TT</a>}
-            {settings.facebook&&<a href={settings.facebook} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".68rem",letterSpacing:".12em",textDecoration:"none"}}>FB</a>}
+          <div onClick={handleLogoTap} style={{userSelect:"none",cursor:"default",display:"inline-block",marginBottom:"1rem"}}>
+            <Logo settings={settings}/>
+          </div>
+          <p style={{color:TH.sub,fontSize:".8rem",lineHeight:1.6,maxWidth:"18rem"}}>{settings.heroSub?.slice(0,80)}...</p>
+          <div style={{display:"flex",gap:"1rem",marginTop:"1rem",flexWrap:"wrap"}}>
+            {settings.instagram&&<a href={`https://instagram.com/${settings.instagram.replace("@","")}`} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".65rem",letterSpacing:".12em",textDecoration:"none"}}>IG</a>}
+            {settings.tiktok&&<a href={`https://tiktok.com/${settings.tiktok.replace("@","")}`} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".65rem",letterSpacing:".12em",textDecoration:"none"}}>TT</a>}
+            {settings.facebook&&<a href={settings.facebook} target="_blank" style={{color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".65rem",letterSpacing:".12em",textDecoration:"none"}}>FB</a>}
           </div>
         </div>
-        <div style={{display:"flex",gap:".6rem",alignSelf:"flex-start"}}>
-          <button onClick={toggleTheme} style={{background:"transparent",color:TH.sub,fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".5rem .85rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>
-            {darkMode?"☀️ LIGHT":"🌙 DARK"}
-          </button>
-          <button onClick={()=>setAdmin(true)} style={{background:"transparent",color:TH.muted,fontFamily:"'Space Mono',monospace",fontSize:".6rem",padding:".5rem .85rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".1em"}}>⚙️ ADMIN</button>
+        <div>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".18em",color:ac,marginBottom:"1rem"}}>QUICK LINKS</p>
+          {[["#products","New Drops"],["#categories","Categories"]].map(([href,label])=>(
+            <a key={label} href={href} style={{display:"block",color:TH.sub,fontSize:".875rem",textDecoration:"none",marginBottom:".5rem"}}>{label}</a>
+          ))}
+          <button onClick={()=>setGlobalChart(true)} style={{background:"none",border:"none",color:TH.sub,fontSize:".875rem",cursor:"pointer",padding:0,textAlign:"left"}}>Size Chart</button>
+        </div>
+        <div>
+          <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",letterSpacing:".18em",color:ac,marginBottom:"1rem"}}>CONTACT</p>
+          {settings.waNumber&&<a href={`https://wa.me/${settings.waNumber}`} target="_blank" style={{display:"flex",alignItems:"center",gap:".5rem",background:"#25D366",color:"#fff",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:".65rem",padding:".65rem 1rem",borderRadius:"2px",textDecoration:"none",letterSpacing:".08em",width:"fit-content"}}>💬 WHATSAPP ORDER</a>}
         </div>
       </div>
-      <p style={{fontFamily:"'Space Mono',monospace",fontSize:".58rem",color:TH.muted,textAlign:"center"}}>© 2025 {settings.brandName.toUpperCase()}. {settings.footerText}</p>
+      <div style={{borderTop:`1px solid ${TH.border}`,paddingTop:"1.5rem",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"1rem"}}>
+        <p style={{fontFamily:"'Space Mono',monospace",fontSize:".55rem",color:TH.muted}}>© 2025 {settings.brandName.toUpperCase()}. {settings.footerText}</p>
+        <button onClick={toggleTheme} style={{background:"transparent",color:TH.muted,fontFamily:"'Space Mono',monospace",fontSize:".55rem",padding:".4rem .75rem",border:`1px solid ${TH.border}`,cursor:"pointer",borderRadius:"2px",letterSpacing:".08em"}}>
+          {darkMode?"☀️ LIGHT MODE":"🌙 DARK MODE"}
+        </button>
+      </div>
     </footer>
 
     </>}{/* end !activeCat */}
